@@ -1,0 +1,3 @@
+CREATE SCHEMA IF NOT EXISTS insighttrace;
+CREATE SCHEMA IF NOT EXISTS demo_catalog;
+CREATE SCHEMA IF NOT EXISTS demo_customer;

@@ -1,0 +1,1 @@
+"""InsightTrace backend application."""

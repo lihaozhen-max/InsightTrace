@@ -1,0 +1,43 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.venv/
+*.egg-info/
+
+# Node
+node_modules/
+.npm-cache/
+dist/
+coverage/
+*.tsbuildinfo
+
+# IDE and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Runtime storage
+storage/uploads/*
+storage/exports/*
+storage/workspace/*
+!storage/uploads/.gitkeep
+!storage/exports/.gitkeep
+!storage/workspace/.gitkeep
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Logs
+*.log

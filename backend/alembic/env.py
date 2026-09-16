@@ -1,10 +1,11 @@
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from alembic import context
+from app import models  # noqa: F401
 from app.core.config import get_settings
-from app.db.base import Base
+from app.db.base import APP_SCHEMA, Base
 
 config = context.config
 
@@ -15,6 +16,17 @@ config.set_main_option("sqlalchemy.url", get_settings().sync_database_url)
 target_metadata = Base.metadata
 
 
+def include_object(
+    object_: object,
+    name: str | None,
+    type_: str,
+    reflected: bool,
+    compare_to: object | None,
+) -> bool:
+    del object_, reflected, compare_to
+    return not (type_ == "table" and name == "alembic_version")
+
+
 def run_migrations_offline() -> None:
     context.configure(
         url=config.get_main_option("sqlalchemy.url"),
@@ -22,6 +34,9 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        include_schemas=True,
+        version_table_schema=APP_SCHEMA,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -33,6 +48,7 @@ def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args={"options": "-csearch_path=public"},
     )
 
     with connectable.connect() as connection:
@@ -40,6 +56,9 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
+            include_schemas=True,
+            version_table_schema=APP_SCHEMA,
+            include_object=include_object,
         )
 
         with context.begin_transaction():

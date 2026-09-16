@@ -7,6 +7,7 @@ InsightTrace 是一个面向经营分析场景的多轮归因分析系统。当�
 - React + TypeScript 前端骨架；
 - FastAPI 后端骨架；
 - PostgreSQL 与 Alembic 迁移基础；
+- 十张核心业务表及数据库约束；
 - Docker Compose 本地运行环境；
 - 存活与就绪健康检查；
 - 前后端基础测试入口；
@@ -46,6 +47,13 @@ python -m venv .venv
 pip install -e ".[dev]"
 pytest
 uvicorn app.main:app --reload
+```
+
+后端质量检查使用隔离的 Docker 测试镜像：
+
+```powershell
+docker build --target test -t insighttrace-backend-test backend
+docker run --rm insighttrace-backend-test ruff check app tests alembic
 ```
 
 前端要求 Node.js 22：

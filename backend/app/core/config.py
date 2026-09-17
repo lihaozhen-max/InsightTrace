@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     mock_auth_code_ttl_seconds: int = 120
     attachment_max_file_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
     attachment_max_conversation_bytes: int = Field(default=100 * 1024 * 1024, gt=0)
+    attachment_parse_max_rows: int = Field(default=100_000, gt=0)
+    attachment_parse_max_columns: int = Field(default=200, gt=0)
+    attachment_parse_max_sheets: int = Field(default=20, gt=0)
+    attachment_parse_max_text_chars: int = Field(default=1_000_000, gt=0)
+    attachment_parse_max_cell_chars: int = Field(default=10_000, gt=0)
+    attachment_parse_max_json_depth: int = Field(default=30, gt=0)
 
     analysis_mode: Literal["demo", "model"] = "demo"
     openai_base_url: str | None = None

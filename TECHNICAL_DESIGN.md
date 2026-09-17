@@ -52,7 +52,7 @@
 | ORM | SQLAlchemy 2.x | 使用声明式模型和显式事务 |
 | 数据迁移 | Alembic | 所有表结构变更必须迁移 |
 | 数据库 | PostgreSQL | Docker Compose 固定主版本 |
-| 文件分析 | Pandas + openpyxl | CSV/XLSX/JSON/TXT |
+| 文件分析 | Python 标准库 + openpyxl；Pandas 留待 M4 | CSV/XLSX/JSON/TXT |
 | 模型接口 | OpenAI-compatible API | 通过适配器和环境变量配置 |
 | 实时通信 | WebSocket | JSON 事件协议 |
 | 后端测试 | Pytest | 单元、集成和接口测试 |
@@ -468,6 +468,7 @@ JSON 字段使用 PostgreSQL `jsonb`：
 | `GET /api/conversations/{conversation_id}/attachments` | 查询会话附件 |
 | `GET /api/conversations/{conversation_id}/attachments/{attachment_id}/download` | 下载附件 |
 | `DELETE /api/conversations/{conversation_id}/attachments/{attachment_id}` | 删除附件 |
+| `POST /api/conversations/{conversation_id}/attachments/{attachment_id}/parse` | 重新解析附件 |
 
 所有接口必须先使用当前用户 ID 和会话 ID 查询会话，再访问附件。文件使用随机存储名，
 数据库仅保存存储根目录内的相对路径；下载时再次解析并校验路径仍位于受控存储根目录。
@@ -480,6 +481,10 @@ JSON 字段使用 PostgreSQL `jsonb`：
 - `parsing`
 - `success`
 - `failed`
+
+当前采用请求内解析：文件先成功持久化并进入 `parsing`，随后在线程池中执行文件读取，
+避免阻塞异步事件循环。解析失败时保留原文件并记录安全错误信息，用户可以通过重新解析
+接口重试。等 M3 引入分析任务状态机后，再评估是否把大文件解析迁入后台任务。
 
 ### 8.6 分析任务接口
 
@@ -1099,3 +1104,4 @@ workspace/{user_id}/{conversation_id}/{task_id}/
 | 2026-09-17 | 0.7 | 完成会话重命名、归档、恢复、级联删除和文件目录清理 |
 | 2026-09-17 | 0.8 | 完成工程规范整改：移除默认密钥、隔离测试数据库并增强全新数据库迁移能力 |
 | 2026-09-17 | 0.9 | 完成附件上传、列表、下载和删除；落地文件校验、容量限制、路径安全与用户隔离 |
+| 2026-09-17 | 1.0 | 完成四类附件自动解析、限制校验、失败重试与 M2 聊天工作台闭环 |

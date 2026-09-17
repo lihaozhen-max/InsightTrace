@@ -60,6 +60,23 @@ export async function deleteAttachment({
   }
 }
 
+export async function parseAttachment({
+  conversationId,
+  attachmentId,
+}: {
+  conversationId: string;
+  attachmentId: string;
+}): Promise<Attachment> {
+  const response = await fetch(
+    `/api/conversations/${conversationId}/attachments/${attachmentId}/parse`,
+    { method: "POST", credentials: "include", headers: { Accept: "application/json" } },
+  );
+  if (!response.ok) {
+    throw new Error("附件解析失败");
+  }
+  return (await response.json()) as Attachment;
+}
+
 export function attachmentDownloadUrl(conversationId: string, attachmentId: string): string {
   return `/api/conversations/${conversationId}/attachments/${attachmentId}/download`;
 }

@@ -4,6 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.conversation import Attachment
+from app.models.enums import AttachmentParseStatus
 
 
 async def list_for_conversation(
@@ -26,14 +27,16 @@ async def get_for_conversation(
     *,
     attachment_id: UUID,
     conversation_id: UUID,
+    for_update: bool = False,
 ) -> Attachment | None:
-    return await session.scalar(
-        select(Attachment).where(
-            Attachment.id == attachment_id,
-            Attachment.conversation_id == conversation_id,
-            Attachment.deleted_at.is_(None),
-        )
+    statement = select(Attachment).where(
+        Attachment.id == attachment_id,
+        Attachment.conversation_id == conversation_id,
+        Attachment.deleted_at.is_(None),
     )
+    if for_update:
+        statement = statement.with_for_update()
+    return await session.scalar(statement)
 
 
 async def total_size_for_conversation(
@@ -59,3 +62,19 @@ async def create_attachment(session: AsyncSession, attachment: Attachment) -> At
 async def delete_attachment(session: AsyncSession, attachment: Attachment) -> None:
     await session.delete(attachment)
     await session.commit()
+
+
+async def update_parse_result(
+    session: AsyncSession,
+    attachment: Attachment,
+    *,
+    status: AttachmentParseStatus,
+    content: dict | list | None = None,
+    error: str | None = None,
+) -> Attachment:
+    attachment.parse_status = status
+    attachment.parsed_content_json = content
+    attachment.parse_error = error
+    await session.commit()
+    await session.refresh(attachment)
+    return attachment

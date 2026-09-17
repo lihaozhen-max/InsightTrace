@@ -5,6 +5,7 @@ import {
   attachmentDownloadUrl,
   deleteAttachment,
   listAttachments,
+  parseAttachment,
   uploadAttachment,
 } from "../api/attachments";
 
@@ -46,6 +47,12 @@ export function AttachmentPanel({ conversationId, isArchived }: AttachmentPanelP
       await queryClient.invalidateQueries({ queryKey: ["attachments", conversationId] });
     },
   });
+  const parse = useMutation({
+    mutationFn: parseAttachment,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["attachments", conversationId] });
+    },
+  });
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -81,6 +88,7 @@ export function AttachmentPanel({ conversationId, isArchived }: AttachmentPanelP
       {attachments.isError && <p className="error">附件列表读取失败，请稍后重试。</p>}
       {upload.isError && <p className="error">上传失败，请检查格式和文件大小。</p>}
       {remove.isError && <p className="error">附件删除失败，请稍后重试。</p>}
+      {parse.isError && <p className="error">附件重新解析失败，请稍后重试。</p>}
       {attachments.data?.length === 0 && <p className="muted">还没有附件。</p>}
       {attachments.data && attachments.data.length > 0 && (
         <ul className="attachment-list">
@@ -91,8 +99,22 @@ export function AttachmentPanel({ conversationId, isArchived }: AttachmentPanelP
                 <span>
                   {formatFileSize(attachment.file_size)} · {parseStatusLabels[attachment.parse_status]}
                 </span>
+                {attachment.parse_error && (
+                  <span className="attachment-parse-error">{attachment.parse_error}</span>
+                )}
               </div>
               <div className="attachment-actions">
+                {(attachment.parse_status === "failed" || attachment.parse_status === "pending") && (
+                  <button
+                    type="button"
+                    disabled={parse.isPending}
+                    onClick={() =>
+                      parse.mutate({ conversationId, attachmentId: attachment.id })
+                    }
+                  >
+                    重新解析
+                  </button>
+                )}
                 <a href={attachmentDownloadUrl(conversationId, attachment.id)}>下载</a>
                 <button
                   type="button"

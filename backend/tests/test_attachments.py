@@ -76,11 +76,29 @@ def test_attachment_lifecycle_and_user_isolation(
         assert attachment["file_name"] == "sales.csv"
         assert attachment["file_size"] == len(content)
         assert attachment["sha256"] == hashlib.sha256(content).hexdigest()
-        assert attachment["parse_status"] == "pending"
+        assert attachment["parse_status"] == "success"
+        assert attachment["parse_error"] is None
+
+        reparsed = admin_client.post(
+            f"{attachment_url}/{attachment['id']}/parse"
+        )
+        assert reparsed.status_code == 200
+        assert reparsed.json()["parse_status"] == "success"
+
+        invalid_json = admin_client.post(
+            attachment_url,
+            files={"file": ("broken.json", b'{"missing":', "application/json")},
+        )
+        assert invalid_json.status_code == 201
+        assert invalid_json.json()["parse_status"] == "failed"
+        assert "JSON 格式错误" in invalid_json.json()["parse_error"]
 
         listed = admin_client.get(attachment_url)
         assert listed.status_code == 200
-        assert [item["id"] for item in listed.json()] == [attachment["id"]]
+        assert {item["id"] for item in listed.json()} == {
+            attachment["id"],
+            invalid_json.json()["id"],
+        }
 
         downloaded = admin_client.get(
             f"{attachment_url}/{attachment['id']}/download"

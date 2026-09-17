@@ -20,6 +20,7 @@ from app.repositories.attachments import (
 )
 from app.repositories.conversations import get_for_user
 from app.schemas.attachment import AttachmentResponse
+from app.services.attachment_parsing import parse_attachment_record
 from app.services.attachments import resolve_attachment_path, store_upload
 
 logger = logging.getLogger(__name__)
@@ -49,12 +50,15 @@ async def _owned_attachment(
     conversation_id: UUID,
     session: DatabaseSession,
     user_id: UUID,
+    *,
+    for_update: bool = False,
 ) -> Attachment:
     await _owned_conversation(conversation_id, session, user_id)
     attachment = await get_for_conversation(
         session,
         attachment_id=attachment_id,
         conversation_id=conversation_id,
+        for_update=for_update,
     )
     if attachment is None:
         raise ResourceNotFoundError("附件不存在")
@@ -116,6 +120,7 @@ async def upload_attachment(
                 sha256=stored.sha256,
             ),
         )
+        attachment = await parse_attachment_record(session, attachment, settings)
     except Exception:
         if stored is not None:
             stored.absolute_path.unlink(missing_ok=True)
@@ -124,6 +129,24 @@ async def upload_attachment(
         await file.close()
 
     return AttachmentResponse.model_validate(attachment)
+
+
+@router.post("/{attachment_id}/parse", response_model=AttachmentResponse)
+async def retry_attachment_parsing(
+    conversation_id: UUID,
+    attachment_id: UUID,
+    session: DatabaseSession,
+    current_user: CurrentUser,
+) -> AttachmentResponse:
+    attachment = await _owned_attachment(
+        attachment_id,
+        conversation_id,
+        session,
+        current_user.id,
+        for_update=True,
+    )
+    parsed = await parse_attachment_record(session, attachment, get_settings())
+    return AttachmentResponse.model_validate(parsed)
 
 
 @router.get("/{attachment_id}/download", response_class=FileResponse)

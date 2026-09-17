@@ -103,7 +103,19 @@ describe("App", () => {
           return {
             ok: true,
             status: 200,
-            json: async () => [],
+            json: async () => [
+              {
+                id: "attachment-1",
+                conversation_id: "conversation-1",
+                file_name: "broken.json",
+                file_type: "application/json",
+                file_size: 12,
+                sha256: "hash",
+                parse_status: "failed",
+                parse_error: "JSON 格式错误：第 1 行第 12 列",
+                created_at: "2026-09-17T00:00:00Z",
+              },
+            ],
           };
         }
 
@@ -136,6 +148,8 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "我的分析会话" })).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: /分析本月商品转化下降原因/ }));
     expect(await screen.findByText("还没有消息，输入第一个经营问题吧。")).toBeInTheDocument();
-    expect(await screen.findByText("还没有附件。")).toBeInTheDocument();
+    expect(await screen.findByText("broken.json")).toBeInTheDocument();
+    expect(screen.getByText("JSON 格式错误：第 1 行第 12 列")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "重新解析" })).toBeInTheDocument();
   });
 });

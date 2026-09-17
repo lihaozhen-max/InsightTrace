@@ -52,6 +52,24 @@ async def total_size_for_conversation(
     return int(size or 0)
 
 
+async def list_selected_for_conversation(
+    session: AsyncSession,
+    *,
+    conversation_id: UUID,
+    attachment_ids: list[UUID],
+) -> list[Attachment]:
+    if not attachment_ids:
+        return []
+    result = await session.scalars(
+        select(Attachment).where(
+            Attachment.id.in_(attachment_ids),
+            Attachment.conversation_id == conversation_id,
+            Attachment.deleted_at.is_(None),
+        )
+    )
+    return list(result)
+
+
 async def create_attachment(session: AsyncSession, attachment: Attachment) -> Attachment:
     session.add(attachment)
     await session.commit()

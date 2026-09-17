@@ -3,18 +3,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   createConversation,
-  createMessage,
   deleteConversation,
   listConversations,
   listMessages,
   updateConversation,
 } from "../api/conversations";
 import { AttachmentPanel } from "./AttachmentPanel";
+import { TaskPanel } from "./TaskPanel";
 
 export function ConversationWorkspace() {
   const [title, setTitle] = useState("");
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-  const [messageContent, setMessageContent] = useState("");
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const queryClient = useQueryClient();
@@ -33,16 +32,6 @@ export function ConversationWorkspace() {
       setTitle("");
       setSelectedConversationId(conversation.id);
       await queryClient.invalidateQueries({ queryKey: ["conversations"] });
-    },
-  });
-  const createMessageMutation = useMutation({
-    mutationFn: createMessage,
-    onSuccess: async () => {
-      setMessageContent("");
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["messages", selectedConversationId] }),
-        queryClient.invalidateQueries({ queryKey: ["conversations"] }),
-      ]);
     },
   });
   const updateConversationMutation = useMutation({
@@ -68,17 +57,6 @@ export function ConversationWorkspace() {
     const normalizedTitle = title.trim();
     if (normalizedTitle) {
       createConversationMutation.mutate(normalizedTitle);
-    }
-  }
-
-  function handleMessageSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const normalizedContent = messageContent.trim();
-    if (selectedConversationId && normalizedContent) {
-      createMessageMutation.mutate({
-        conversationId: selectedConversationId,
-        content: normalizedContent,
-      });
     }
   }
 
@@ -241,30 +219,11 @@ export function ConversationWorkspace() {
                   </ol>
                 )}
 
-                {selectedConversation.status === "active" ? (
-                  <form className="message-form" onSubmit={handleMessageSubmit}>
-                    <label htmlFor="message-content">输入经营问题</label>
-                    <textarea
-                      id="message-content"
-                      value={messageContent}
-                      maxLength={10_000}
-                      rows={4}
-                      placeholder="例如：请帮我分析销量下降可能由哪些指标造成"
-                      onChange={(event) => setMessageContent(event.target.value)}
-                    />
-                    <button
-                      type="submit"
-                      disabled={!messageContent.trim() || createMessageMutation.isPending}
-                    >
-                      {createMessageMutation.isPending ? "保存中…" : "保存消息"}
-                    </button>
-                    {createMessageMutation.isError && (
-                      <span className="error">消息保存失败，请重试。</span>
-                    )}
-                  </form>
-                ) : (
-                  <p className="archived-notice">该会话已归档。恢复后才能继续发送消息。</p>
-                )}
+                <TaskPanel
+                  key={selectedConversation.id}
+                  conversationId={selectedConversation.id}
+                  isArchived={selectedConversation.status === "archived"}
+                />
                 <AttachmentPanel
                   conversationId={selectedConversation.id}
                   isArchived={selectedConversation.status === "archived"}

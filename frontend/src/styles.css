@@ -474,6 +474,67 @@ h2 {
   border-top: 1px solid rgb(148 163 184 / 14%);
 }
 
+.task-panel {
+  margin-top: 22px;
+}
+
+.task-status-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid rgb(148 163 184 / 18%);
+  border-radius: 12px;
+  background: rgb(30 58 85 / 44%);
+}
+
+.task-status-card > div {
+  display: grid;
+  gap: 7px;
+}
+
+.task-status {
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #5eead4;
+  background: rgb(15 118 110 / 18%);
+  font-size: 12px;
+}
+
+.task-status.failed,
+.task-status.cancelled {
+  color: #fda4af;
+  background: rgb(159 18 57 / 18%);
+}
+
+.task-status-card button {
+  flex: none;
+  padding: 7px 10px;
+  border: 1px solid rgb(148 163 184 / 24%);
+  border-radius: 8px;
+  color: #cbd5e1;
+  background: transparent;
+  cursor: pointer;
+}
+
+.task-note {
+  margin: 10px 0 0;
+  color: #91a1b7;
+  font-size: 12px;
+}
+
+.task-log-list {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding-left: 20px;
+  color: #9fb0c6;
+  font-size: 13px;
+}
+
 .attachment-heading {
   display: flex;
   align-items: center;

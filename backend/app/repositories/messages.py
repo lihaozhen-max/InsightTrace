@@ -26,6 +26,22 @@ async def create_user_message(
     conversation: Conversation,
     content: str,
 ) -> Message:
+    message = await create_user_message_pending(
+        session,
+        conversation=conversation,
+        content=content,
+    )
+    await session.commit()
+    await session.refresh(message)
+    return message
+
+
+async def create_user_message_pending(
+    session: AsyncSession,
+    *,
+    conversation: Conversation,
+    content: str,
+) -> Message:
     last_seq_no = await session.scalar(
         select(func.max(Message.seq_no)).where(
             Message.conversation_id == conversation.id
@@ -40,6 +56,5 @@ async def create_user_message(
     )
     conversation.last_message_at = datetime.now(UTC)
     session.add(message)
-    await session.commit()
-    await session.refresh(message)
+    await session.flush()
     return message

@@ -119,6 +119,14 @@ describe("App", () => {
           };
         }
 
+        if (url.endsWith("/api/conversations/conversation-1/tasks")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => [],
+          };
+        }
+
         return {
           ok: true,
           status: 200,
@@ -151,5 +159,6 @@ describe("App", () => {
     expect(await screen.findByText("broken.json")).toBeInTheDocument();
     expect(screen.getByText("JSON 格式错误：第 1 行第 12 列")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重新解析" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开始分析" })).toBeInTheDocument();
   });
 });

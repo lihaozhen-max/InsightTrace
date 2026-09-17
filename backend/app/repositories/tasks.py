@@ -74,6 +74,22 @@ async def list_logs(session: AsyncSession, task_id: UUID) -> list[TaskLog]:
     return list(result)
 
 
+async def list_logs_after(
+    session: AsyncSession,
+    task_id: UUID,
+    sequence_no: int,
+) -> list[TaskLog]:
+    result = await session.scalars(
+        select(TaskLog)
+        .where(
+            TaskLog.task_id == task_id,
+            TaskLog.sequence_no > sequence_no,
+        )
+        .order_by(TaskLog.sequence_no)
+    )
+    return list(result)
+
+
 async def _next_log_sequence(session: AsyncSession, task_id: UUID) -> int:
     current = await session.scalar(
         select(func.max(TaskLog.sequence_no)).where(TaskLog.task_id == task_id)

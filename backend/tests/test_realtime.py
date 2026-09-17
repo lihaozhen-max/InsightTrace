@@ -14,6 +14,7 @@ from app.db.session import SessionLocal
 from app.main import app
 from app.models.conversation import Conversation
 from app.models.identity import WebSocketToken
+from app.tasks.executor import process_next_queued_task
 
 pytestmark = pytest.mark.skipif(
     os.getenv("RUN_DB_TESTS") != "1",
@@ -134,3 +135,43 @@ def test_expired_websocket_token_is_rejected(
         ) as socket:
             error = socket.receive_json()
             assert error["payload"]["error_code"] == "WEBSOCKET_TOKEN_INVALID"
+
+
+def test_completed_task_replays_persisted_execution_events(
+    created_conversation_ids: list[UUID],
+) -> None:
+    with TestClient(app, follow_redirects=False) as client:
+        login_as(client, "admin")
+        conversation = client.post(
+            "/api/conversations",
+            json={"title": f"完整事件测试 {uuid4()}"},
+        ).json()
+        conversation_id = conversation["id"]
+        created_conversation_ids.append(UUID(conversation_id))
+        client.post(
+            "/api/tasks",
+            json={"conversation_id": conversation_id, "input_text": "分析经营变化"},
+        )
+        assert asyncio.run(process_next_queued_task()) is True
+        issued = client.post(
+            "/api/chat/ws-token",
+            json={"conversation_id": conversation_id},
+        ).json()
+
+        with client.websocket_connect(
+            websocket_url(conversation_id, issued["token"])
+        ) as socket:
+            events = []
+            while not events or events[-1]["event_type"] != "done":
+                events.append(socket.receive_json())
+
+        event_types = [event["event_type"] for event in events]
+        assert event_types[0] == "connected"
+        assert "task_status" in event_types
+        assert "message_start" in event_types
+        assert "message_delta" in event_types
+        assert "tool_start" in event_types
+        assert "tool_finish" in event_types
+        assert "result_ready" in event_types
+        assert event_types[-1] == "done"
+        assert [event["seq_no"] for event in events] == list(range(len(events)))

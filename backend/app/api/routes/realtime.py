@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import json
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
@@ -14,11 +15,19 @@ from app.db.session import SessionLocal
 from app.models.analysis import AnalysisTask
 from app.models.enums import TaskStatus
 from app.repositories.conversations import get_for_user as get_conversation_for_user
-from app.repositories.tasks import get_latest_for_conversation
+from app.repositories.tasks import get_latest_for_conversation, list_logs_after
 from app.repositories.websocket_tokens import consume_token, create_token
 from app.schemas.realtime import WebSocketTokenRequest, WebSocketTokenResponse
 
 router = APIRouter(prefix="/api/chat", tags=["realtime"])
+
+REALTIME_LOG_TYPES = {
+    "message_start",
+    "message_delta",
+    "tool_start",
+    "tool_finish",
+    "result_ready",
+}
 
 
 def _token_hash(token: str) -> str:
@@ -114,6 +123,8 @@ async def realtime_chat(
             )
         )
         observed: tuple[UUID, int, TaskStatus, str | None] | None = None
+        observed_task_id: UUID | None = None
+        observed_log_sequence = 0
         try:
             while True:
                 task = await get_latest_for_conversation(
@@ -122,6 +133,9 @@ async def realtime_chat(
                     user_id=token.user_id,
                 )
                 if task is not None:
+                    if task.id != observed_task_id:
+                        observed_task_id = task.id
+                        observed_log_sequence = 0
                     current = (task.id, task.version, task.task_status, task.current_step)
                     if current != observed:
                         sequence_no += 1
@@ -139,11 +153,45 @@ async def realtime_chat(
                             )
                         )
                         observed = current
+                    logs = await list_logs_after(session, task.id, observed_log_sequence)
+                    for log in logs:
+                        observed_log_sequence = log.sequence_no
+                        if log.log_type not in REALTIME_LOG_TYPES:
+                            continue
+                        try:
+                            payload = json.loads(log.log_content)
+                        except (json.JSONDecodeError, TypeError):
+                            continue
+                        sequence_no += 1
+                        await websocket.send_json(
+                            _event(
+                                log.log_type,
+                                conversation_id=conversation_id,
+                                sequence_no=sequence_no,
+                                task=task,
+                                payload=payload,
+                            )
+                        )
                     if task.task_status in (
                         TaskStatus.SUCCESS,
                         TaskStatus.FAILED,
                         TaskStatus.CANCELLED,
                     ):
+                        if task.task_status == TaskStatus.FAILED:
+                            sequence_no += 1
+                            await websocket.send_json(
+                                _event(
+                                    "error",
+                                    conversation_id=conversation_id,
+                                    sequence_no=sequence_no,
+                                    task=task,
+                                    payload={
+                                        "error_code": task.error_code,
+                                        "error_message": task.error_message,
+                                        "retryable": task.retryable,
+                                    },
+                                )
+                            )
                         sequence_no += 1
                         await websocket.send_json(
                             _event(

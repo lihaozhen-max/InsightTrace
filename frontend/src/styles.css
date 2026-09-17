@@ -495,6 +495,11 @@ h2 {
   gap: 7px;
 }
 
+.task-current-step {
+  color: #9fb0c6;
+  font-size: 12px;
+}
+
 .task-status {
   width: fit-content;
   padding: 4px 8px;
@@ -534,6 +539,29 @@ h2 {
 
 .realtime-status.connected {
   color: #5eead4;
+}
+
+.live-analysis {
+  margin-top: 12px;
+  padding: 13px 15px;
+  border-left: 3px solid #5eead4;
+  border-radius: 8px;
+  background: rgb(15 118 110 / 10%);
+}
+
+.live-analysis strong {
+  color: #5eead4;
+  font-size: 13px;
+}
+
+.live-analysis ol {
+  display: grid;
+  gap: 5px;
+  margin: 9px 0 0;
+  padding-left: 20px;
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .task-log-list {

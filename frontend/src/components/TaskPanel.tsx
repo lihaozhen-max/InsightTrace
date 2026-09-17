@@ -8,8 +8,9 @@ import {
   listTasks,
   retryTask,
   TaskStatus,
+  TaskLog,
 } from "../api/tasks";
-import { issueWebSocketToken } from "../api/realtime";
+import { issueWebSocketToken, RealtimeEvent } from "../api/realtime";
 
 interface TaskPanelProps {
   conversationId: string;
@@ -24,9 +25,36 @@ const statusLabels: Record<TaskStatus, string> = {
   cancelled: "已取消",
 };
 
+const stepLabels: Record<string, string> = {
+  preparing_context: "准备分析上下文",
+  inspecting_sources: "检查数据源",
+  querying_data: "查询数据",
+  calculating_metrics: "计算指标",
+  building_evidence: "整理证据",
+  generating_conclusion: "生成结论",
+  saving_result: "保存结果",
+};
+
+function taskLogText(log: TaskLog): string {
+  if (!["message_start", "message_delta", "tool_start", "tool_finish", "result_ready"].includes(log.log_type)) {
+    return log.log_content;
+  }
+  try {
+    const payload = JSON.parse(log.log_content) as Record<string, unknown>;
+    if (log.log_type === "message_start") return "开始生成分析说明";
+    if (log.log_type === "message_delta") return String(payload.delta_text ?? "生成分析说明");
+    if (log.log_type === "tool_start") return `开始使用工具：${String(payload.summary ?? payload.tool_name)}`;
+    if (log.log_type === "tool_finish") return String(payload.result_summary ?? "工具执行完成");
+    return "分析结果已经保存";
+  } catch {
+    return log.log_content;
+  }
+}
+
 export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
   const [inputText, setInputText] = useState("");
   const [realtimeStatus, setRealtimeStatus] = useState<"idle" | "connecting" | "connected">("idle");
+  const [liveUpdates, setLiveUpdates] = useState<string[]>([]);
   const queryClient = useQueryClient();
   const tasks = useQuery({
     queryKey: ["tasks", conversationId],
@@ -73,6 +101,10 @@ export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
   const hasActiveTask = latestTask && ["queued", "running"].includes(latestTask.task_status);
 
   useEffect(() => {
+    setLiveUpdates([]);
+  }, [latestTask?.id]);
+
+  useEffect(() => {
     if (!latestTask || !["queued", "running"].includes(latestTask.task_status)) {
       setRealtimeStatus("idle");
       return;
@@ -91,12 +123,31 @@ export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
         });
         socket = new WebSocket(`${scheme}//${window.location.host}${issued.websocket_path}?${query}`);
         socket.onmessage = (message) => {
-          const event = JSON.parse(message.data as string) as { event_type: string };
+          const event = JSON.parse(message.data as string) as RealtimeEvent;
           if (event.event_type === "connected") setRealtimeStatus("connected");
+          if (event.event_type === "message_delta") {
+            setLiveUpdates((items) => [...items, String(event.payload.delta_text ?? "")]);
+          }
+          if (event.event_type === "tool_start") {
+            setLiveUpdates((items) => [
+              ...items,
+              `正在执行：${String(event.payload.summary ?? event.payload.tool_name)}`,
+            ]);
+          }
+          if (event.event_type === "tool_finish") {
+            setLiveUpdates((items) => [
+              ...items,
+              String(event.payload.result_summary ?? "工具执行完成"),
+            ]);
+          }
+          if (event.event_type === "result_ready") {
+            setLiveUpdates((items) => [...items, "结构化分析结果已经保存"]);
+          }
           if (["task_status", "error", "done"].includes(event.event_type)) {
             void queryClient.invalidateQueries({ queryKey: ["tasks", conversationId] });
             void queryClient.invalidateQueries({ queryKey: ["task-logs", latestTask.id] });
           }
+          if (event.event_type === "done") void refreshTaskData();
         };
         socket.onclose = () => {
           if (!disposed) setRealtimeStatus("idle");
@@ -110,7 +161,7 @@ export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
       disposed = true;
       socket?.close();
     };
-  }, [conversationId, latestTask?.id, latestTask?.task_status, queryClient]);
+  }, [conversationId, latestTask?.id, queryClient]);
 
   return (
     <section className="task-panel" aria-labelledby="analysis-input-title">
@@ -144,6 +195,11 @@ export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
               {statusLabels[latestTask.task_status]}
             </span>
             <strong>{latestTask.input_text}</strong>
+            {latestTask.current_step && (
+              <span className="task-current-step">
+                {stepLabels[latestTask.current_step] ?? latestTask.current_step}
+              </span>
+            )}
           </div>
           {(latestTask.task_status === "queued" || latestTask.task_status === "running") && (
             <button type="button" disabled={cancel.isPending} onClick={() => cancel.mutate(latestTask.id)}>
@@ -157,18 +213,24 @@ export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
           )}
         </div>
       )}
-      {latestTask?.task_status === "queued" && (
-        <p className="task-note">任务已经可靠保存；分析执行器将在 M3 下一阶段接入。</p>
-      )}
+      {latestTask?.task_status === "queued" && <p className="task-note">任务已进入执行队列。</p>}
       {hasActiveTask && (
         <p className={`realtime-status ${realtimeStatus}`}>
           {realtimeStatus === "connected" ? "实时连接已建立" : "正在建立实时连接…"}
         </p>
       )}
+      {liveUpdates.length > 0 && (
+        <div className="live-analysis" aria-live="polite">
+          <strong>实时分析进度</strong>
+          <ol>
+            {liveUpdates.map((update, index) => <li key={`${index}-${update}`}>{update}</li>)}
+          </ol>
+        </div>
+      )}
       {(cancel.isError || retry.isError) && <p className="error">任务操作失败，请稍后重试。</p>}
       {logs.data && logs.data.length > 0 && (
         <ol className="task-log-list">
-          {logs.data.map((log) => <li key={log.id}>{log.log_content}</li>)}
+          {logs.data.map((log) => <li key={log.id}>{taskLogText(log)}</li>)}
         </ol>
       )}
     </section>

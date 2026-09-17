@@ -7,13 +7,14 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.analysis import AnalysisTask
 from app.models.conversation import Conversation
 from app.models.enums import TaskStatus
+from app.services.task_lifecycle import finish_cancelled_task
 
 pytestmark = pytest.mark.skipif(
     os.getenv("RUN_DB_TESTS") != "1",
@@ -186,3 +187,16 @@ def test_running_task_uses_cooperative_cancellation(
             "task_queued",
             "cancel_requested",
         ]
+
+        async def finish_cancellation() -> None:
+            async with SessionLocal() as session:
+                model = await session.scalar(
+                    select(AnalysisTask)
+                    .where(AnalysisTask.id == UUID(task["id"]))
+                    .with_for_update()
+                )
+                assert model is not None
+                await finish_cancelled_task(session, model)
+
+        asyncio.run(finish_cancellation())
+        assert client.get(f"/api/tasks/{task['id']}").json()["task_status"] == "cancelled"

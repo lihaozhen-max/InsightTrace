@@ -11,6 +11,7 @@ from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import RequestIdMiddleware
 from app.core.storage import ensure_storage_directories
+from app.services.task_recovery import recover_interrupted_tasks
 
 settings = get_settings()
 
@@ -19,6 +20,8 @@ settings = get_settings()
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.app_env)
     ensure_storage_directories(settings.storage_path)
+    if settings.app_env != "test":
+        await recover_interrupted_tasks()
     yield
 
 

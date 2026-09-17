@@ -29,6 +29,9 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://insighttrace:insighttrace_dev_password@postgres:5432/insighttrace}
       STORAGE_ROOT: /app/storage
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      SESSION_MAX_AGE_SECONDS: ${SESSION_MAX_AGE_SECONDS:-28800}
+      MOCK_AUTH_CODE_TTL_SECONDS: ${MOCK_AUTH_CODE_TTL_SECONDS:-120}
       ANALYSIS_MODE: ${ANALYSIS_MODE:-demo}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}

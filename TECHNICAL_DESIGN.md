@@ -401,13 +401,15 @@ JSON 字段使用 PostgreSQL `jsonb`：
 | 方法与路径 | 用途 |
 | --- | --- |
 | `GET /auth/login` | 发起授权登录 |
+| `GET /auth/mock/authorize` | 展示内置模拟授权页面 |
+| `POST /auth/mock/authorize` | 选择演示身份并签发一次性授权码 |
 | `GET /auth/callback` | 处理授权回调 |
 | `POST /auth/logout` | 清除登录态 |
 | `GET /api/me` | 获取当前用户 |
 
 ### 8.4 会话接口
 
-#### `POST /api/chat/create`
+#### `POST /api/conversations`
 
 请求：
 
@@ -419,7 +421,7 @@ JSON 字段使用 PostgreSQL `jsonb`：
 
 ```json
 {
-  "conversation_id": "uuid",
+  "id": "uuid",
   "title": "分析本月商品转化下降原因",
   "status": "active",
   "created_at": "2026-09-16T08:00:00Z"
@@ -430,26 +432,22 @@ JSON 字段使用 PostgreSQL `jsonb`：
 
 | 方法与路径 | 说明 |
 | --- | --- |
-| `POST /api/chat/update` | 修改标题或状态 |
-| `POST /api/chat/delete` | 批量删除会话 |
-| `GET /api/chat/ls` | 查询当前用户会话列表 |
-| `GET /api/chat/ls/{conversation_id}` | 查询消息、附件摘要和最近结果 |
+| `GET /api/conversations` | 查询当前用户会话列表 |
+| `GET /api/conversations/{conversation_id}` | 查询消息、附件摘要和最近结果 |
+| `PATCH /api/conversations/{conversation_id}` | 修改标题或状态 |
+| `DELETE /api/conversations/{conversation_id}` | 删除会话 |
 
-`POST /api/chat/update` 请求：
+`PATCH /api/conversations/{conversation_id}` 请求：
 
 ```json
 {
-  "conversation_id": "uuid",
   "title": "新的标题",
   "status": "archived"
 }
 ```
 
-`POST /api/chat/delete` 请求：
-
-```json
-{"conversation_ids": ["uuid-1", "uuid-2"]}
-```
+删除接口不接收资源归属信息；后端必须使用路径中的会话 ID 与当前用户 ID
+共同查询目标会话，防止删除其他用户的资源。
 
 ### 8.5 附件接口
 
@@ -1079,3 +1077,5 @@ workspace/{user_id}/{conversation_id}/{task_id}/
 | 2026-09-16 | 0.1 | 建立 MVP v1 技术设计初稿 |
 | 2026-09-16 | 0.2 | 技术设计确认；补充任务重启恢复、输入快照与人工重试设计 |
 | 2026-09-16 | 0.3 | 完成核心模型与首版迁移；明确应用 schema 和连接搜索路径策略 |
+| 2026-09-16 | 0.4 | 完成模拟 OAuth、Cookie 会话、角色识别和认证错误响应实现 |
+| 2026-09-17 | 0.5 | 完成会话创建和列表首个闭环；会话接口统一为 RESTful 资源路径 |

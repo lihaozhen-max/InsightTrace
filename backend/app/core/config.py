@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     )
     storage_root: str = "../storage"
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
+    frontend_url: str = "http://localhost:3000"
+    session_max_age_seconds: int = 28_800
+    mock_auth_code_ttl_seconds: int = 120
 
     analysis_mode: Literal["demo", "model"] = "demo"
     openai_base_url: str | None = None

@@ -8,6 +8,9 @@ InsightTrace 是一个面向经营分析场景的多轮归因分析系统。当�
 - FastAPI 后端骨架；
 - PostgreSQL 与 Alembic 迁移基础；
 - 十张核心业务表及数据库约束；
+- 内置模拟 OAuth 登录、签名 Cookie 会话与分析用户/管理员角色识别；
+- 统一的认证错误响应；
+- 登录用户创建会话并查看自己的会话列表；
 - Docker Compose 本地运行环境；
 - 存活与就绪健康检查；
 - 前后端基础测试入口；
@@ -32,6 +35,7 @@ InsightTrace 是一个面向经营分析场景的多轮归因分析系统。当�
 3. 访问：
 
    - Web：<http://localhost:3000>
+   - 模拟登录：在 Web 首页点击“进入演示登录”，选择分析用户或系统管理员
    - API 文档：<http://localhost:8000/docs>
    - 后端存活检查：<http://localhost:8000/health/live>
    - 后端就绪检查：<http://localhost:8000/health/ready>

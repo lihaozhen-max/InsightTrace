@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     session_max_age_seconds: int = 28_800
     mock_auth_code_ttl_seconds: int = 120
+    websocket_token_ttl_seconds: int = Field(default=60, gt=0, le=300)
     attachment_max_file_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
     attachment_max_conversation_bytes: int = Field(default=100 * 1024 * 1024, gt=0)
     attachment_parse_max_rows: int = Field(default=100_000, gt=0)

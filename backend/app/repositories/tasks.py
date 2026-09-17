@@ -32,6 +32,23 @@ async def list_for_conversation(
     return list(result)
 
 
+async def get_latest_for_conversation(
+    session: AsyncSession,
+    *,
+    conversation_id: UUID,
+    user_id: UUID,
+) -> AnalysisTask | None:
+    return await session.scalar(
+        select(AnalysisTask)
+        .where(
+            AnalysisTask.conversation_id == conversation_id,
+            AnalysisTask.user_id == user_id,
+        )
+        .order_by(AnalysisTask.created_at.desc())
+        .limit(1)
+    )
+
+
 async def get_for_user(
     session: AsyncSession,
     *,

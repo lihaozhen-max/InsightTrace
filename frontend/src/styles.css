@@ -526,6 +526,16 @@ h2 {
   font-size: 12px;
 }
 
+.realtime-status {
+  margin: 8px 0 0;
+  color: #91a1b7;
+  font-size: 12px;
+}
+
+.realtime-status.connected {
+  color: #5eead4;
+}
+
 .task-log-list {
   display: grid;
   gap: 6px;

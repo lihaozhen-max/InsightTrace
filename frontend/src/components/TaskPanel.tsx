@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -9,6 +9,7 @@ import {
   retryTask,
   TaskStatus,
 } from "../api/tasks";
+import { issueWebSocketToken } from "../api/realtime";
 
 interface TaskPanelProps {
   conversationId: string;
@@ -25,6 +26,7 @@ const statusLabels: Record<TaskStatus, string> = {
 
 export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
   const [inputText, setInputText] = useState("");
+  const [realtimeStatus, setRealtimeStatus] = useState<"idle" | "connecting" | "connected">("idle");
   const queryClient = useQueryClient();
   const tasks = useQuery({
     queryKey: ["tasks", conversationId],
@@ -69,6 +71,46 @@ export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
   }
 
   const hasActiveTask = latestTask && ["queued", "running"].includes(latestTask.task_status);
+
+  useEffect(() => {
+    if (!latestTask || !["queued", "running"].includes(latestTask.task_status)) {
+      setRealtimeStatus("idle");
+      return;
+    }
+
+    let socket: WebSocket | undefined;
+    let disposed = false;
+    setRealtimeStatus("connecting");
+    void issueWebSocketToken(conversationId)
+      .then((issued) => {
+        if (disposed) return;
+        const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const query = new URLSearchParams({
+          websocket_token: issued.token,
+          conversation_id: conversationId,
+        });
+        socket = new WebSocket(`${scheme}//${window.location.host}${issued.websocket_path}?${query}`);
+        socket.onmessage = (message) => {
+          const event = JSON.parse(message.data as string) as { event_type: string };
+          if (event.event_type === "connected") setRealtimeStatus("connected");
+          if (["task_status", "error", "done"].includes(event.event_type)) {
+            void queryClient.invalidateQueries({ queryKey: ["tasks", conversationId] });
+            void queryClient.invalidateQueries({ queryKey: ["task-logs", latestTask.id] });
+          }
+        };
+        socket.onclose = () => {
+          if (!disposed) setRealtimeStatus("idle");
+        };
+      })
+      .catch(() => {
+        if (!disposed) setRealtimeStatus("idle");
+      });
+
+    return () => {
+      disposed = true;
+      socket?.close();
+    };
+  }, [conversationId, latestTask?.id, latestTask?.task_status, queryClient]);
 
   return (
     <section className="task-panel" aria-labelledby="analysis-input-title">
@@ -117,6 +159,11 @@ export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
       )}
       {latestTask?.task_status === "queued" && (
         <p className="task-note">任务已经可靠保存；分析执行器将在 M3 下一阶段接入。</p>
+      )}
+      {hasActiveTask && (
+        <p className={`realtime-status ${realtimeStatus}`}>
+          {realtimeStatus === "connected" ? "实时连接已建立" : "正在建立实时连接…"}
+        </p>
       )}
       {(cancel.isError || retry.isError) && <p className="error">任务操作失败，请稍后重试。</p>}
       {logs.data && logs.data.length > 0 && (

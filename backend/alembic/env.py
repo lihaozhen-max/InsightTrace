@@ -1,6 +1,7 @@
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy.schema import CreateSchema
 
 from alembic import context
 from app import models  # noqa: F401
@@ -40,6 +41,7 @@ def run_migrations_offline() -> None:
     )
 
     with context.begin_transaction():
+        context.execute(CreateSchema(APP_SCHEMA, if_not_exists=True))
         context.run_migrations()
 
 
@@ -52,6 +54,8 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        connection.execute(CreateSchema(APP_SCHEMA, if_not_exists=True))
+        connection.commit()
         context.configure(
             connection=connection,
             target_metadata=target_metadata,

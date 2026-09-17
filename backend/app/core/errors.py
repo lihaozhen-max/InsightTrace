@@ -67,6 +67,15 @@ class ForbiddenError(AppError):
         )
 
 
+class ResourceNotFoundError(AppError):
+    def __init__(self, message: str = "资源不存在") -> None:
+        super().__init__(
+            code="RESOURCE_NOT_FOUND",
+            message=message,
+            status_code=404,
+        )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def handle_app_error(request: Request, error: AppError) -> JSONResponse:

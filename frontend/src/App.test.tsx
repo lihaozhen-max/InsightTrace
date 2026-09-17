@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
@@ -91,6 +91,14 @@ describe("App", () => {
           };
         }
 
+        if (url.endsWith("/api/conversations/conversation-1/messages")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => [],
+          };
+        }
+
         return {
           ok: true,
           status: 200,
@@ -118,6 +126,7 @@ describe("App", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "我的分析会话" })).toBeInTheDocument();
-    expect(await screen.findByText("分析本月商品转化下降原因")).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /分析本月商品转化下降原因/ }));
+    expect(await screen.findByText("还没有消息，输入第一个经营问题吧。")).toBeInTheDocument();
   });
 });

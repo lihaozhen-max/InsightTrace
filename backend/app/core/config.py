@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=("../.env", ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -17,11 +17,9 @@ class Settings(BaseSettings):
     app_name: str = "InsightTrace"
     app_env: Literal["development", "test", "production"] = "development"
     app_debug: bool = False
-    app_secret_key: str = "development-only-change-me"
+    app_secret_key: str = Field(min_length=32, repr=False)
 
-    database_url: str = (
-        "postgresql+asyncpg://insighttrace:insighttrace_dev_password@localhost:5432/insighttrace"
-    )
+    database_url: str = Field(min_length=1, repr=False)
     storage_root: str = "../storage"
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
     frontend_url: str = "http://localhost:3000"

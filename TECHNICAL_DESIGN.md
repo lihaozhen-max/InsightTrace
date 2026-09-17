@@ -389,6 +389,7 @@ JSON 字段使用 PostgreSQL `jsonb`：
 | `RESOURCE_NOT_FOUND` | 404 | 资源不存在或不属于当前用户 |
 | `VALIDATION_ERROR` | 422 | 请求字段错误 |
 | `CONVERSATION_BUSY` | 409 | 会话已有活动任务 |
+| `CONVERSATION_ARCHIVED` | 409 | 会话已归档，不能继续写入消息 |
 | `TASK_NOT_CANCELLABLE` | 409 | 任务当前不能取消 |
 | `FILE_TYPE_NOT_ALLOWED` | 415 | 文件格式不支持 |
 | `FILE_TOO_LARGE` | 413 | 文件超过限制 |
@@ -448,6 +449,16 @@ JSON 字段使用 PostgreSQL `jsonb`：
 
 删除接口不接收资源归属信息；后端必须使用路径中的会话 ID 与当前用户 ID
 共同查询目标会话，防止删除其他用户的资源。
+
+#### 会话消息接口
+
+| 方法与路径 | 说明 |
+| --- | --- |
+| `GET /api/conversations/{conversation_id}/messages` | 按消息序号读取历史消息 |
+| `POST /api/conversations/{conversation_id}/messages` | 保存一条用户文本消息 |
+
+消息创建时先锁定属于当前用户的会话记录，再计算下一条消息序号，避免同一会话
+中的并发写入得到重复序号。其他用户访问时统一返回 `RESOURCE_NOT_FOUND`。
 
 ### 8.5 附件接口
 
@@ -1079,3 +1090,6 @@ workspace/{user_id}/{conversation_id}/{task_id}/
 | 2026-09-16 | 0.3 | 完成核心模型与首版迁移；明确应用 schema 和连接搜索路径策略 |
 | 2026-09-16 | 0.4 | 完成模拟 OAuth、Cookie 会话、角色识别和认证错误响应实现 |
 | 2026-09-17 | 0.5 | 完成会话创建和列表首个闭环；会话接口统一为 RESTful 资源路径 |
+| 2026-09-17 | 0.6 | 完成用户消息保存、历史回放、连续序号和会话级资源隔离 |
+| 2026-09-17 | 0.7 | 完成会话重命名、归档、恢复、级联删除和文件目录清理 |
+| 2026-09-17 | 0.8 | 完成工程规范整改：移除默认密钥、隔离测试数据库并增强全新数据库迁移能力 |

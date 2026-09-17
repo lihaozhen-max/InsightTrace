@@ -11,12 +11,14 @@ InsightTrace 是一个面向经营分析场景的多轮归因分析系统。当�
 - 内置模拟 OAuth 登录、签名 Cookie 会话与分析用户/管理员角色识别；
 - 统一的认证错误响应；
 - 登录用户创建会话并查看自己的会话列表；
+- 在自己的会话中保存用户消息并回放历史消息；
+- 会话重命名、归档、恢复和级联删除；
 - Docker Compose 本地运行环境；
 - 存活与就绪健康检查；
 - 前后端基础测试入口；
 - 受控的上传、导出和临时工作目录。
 
-业务会话、附件、分析任务和归因能力将在后续里程碑中实现。
+附件、分析任务和归因能力将在后续里程碑中实现。
 
 ## 快速启动
 
@@ -26,13 +28,26 @@ InsightTrace 是一个面向经营分析场景的多轮归因分析系统。当�
    Copy-Item .env.example .env
    ```
 
-2. 启动服务：
+2. 编辑 `.env`，至少填写：
+
+   - `APP_SECRET_KEY`：长度不少于 32 位的随机字符串；
+   - `POSTGRES_PASSWORD`：本地 PostgreSQL 密码；
+   - `DATABASE_URL`：使用相同密码的开发数据库连接；
+   - `TEST_DATABASE_URL`：数据库名必须以 `_test` 结尾。
+
+   可以用下面的命令生成随机签名密钥：
+
+   ```powershell
+   python -c "import secrets; print(secrets.token_urlsafe(48))"
+   ```
+
+3. 启动服务：
 
    ```powershell
    docker compose up --build
    ```
 
-3. 访问：
+4. 访问：
 
    - Web：<http://localhost:3000>
    - 模拟登录：在 Web 首页点击“进入演示登录”，选择分析用户或系统管理员
@@ -58,6 +73,12 @@ uvicorn app.main:app --reload
 ```powershell
 docker build --target test -t insighttrace-backend-test backend
 docker run --rm insighttrace-backend-test ruff check app tests alembic
+```
+
+数据库集成测试只允许使用名称以 `_test` 结尾的独立数据库：
+
+```powershell
+docker compose --profile test run --rm --build backend-test
 ```
 
 前端要求 Node.js 22：

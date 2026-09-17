@@ -99,6 +99,14 @@ describe("App", () => {
           };
         }
 
+        if (url.endsWith("/api/conversations/conversation-1/attachments")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => [],
+          };
+        }
+
         return {
           ok: true,
           status: 200,
@@ -128,5 +136,6 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "我的分析会话" })).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: /分析本月商品转化下降原因/ }));
     expect(await screen.findByText("还没有消息，输入第一个经营问题吧。")).toBeInTheDocument();
+    expect(await screen.findByText("还没有附件。")).toBeInTheDocument();
   });
 });

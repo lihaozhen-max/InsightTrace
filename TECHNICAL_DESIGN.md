@@ -1,9 +1,9 @@
 # InsightTrace MVP v1 技术设计
 
-> 文档状态：技术设计初稿
+> 文档状态：已确认，随实现持续更新
 > 对应产品版本：`MVP v1`
 > 建立日期：2026-09-16
-> 最近更新：2026-09-16
+> 最近更新：2026-09-17
 > 上游文档：[PROJECT_PLAN.md](./PROJECT_PLAN.md)
 
 ## 1. 文档目的
@@ -464,10 +464,15 @@ JSON 字段使用 PostgreSQL `jsonb`：
 
 | 方法与路径 | 说明 |
 | --- | --- |
-| `POST /api/attachment/upload` | 使用 multipart 上传文件 |
-| `POST /api/attachment/delete` | 删除附件 |
-| `GET /api/attachment/get?attachment_id={id}` | 下载附件 |
-| `GET /api/attachment/ls?conversation_id={id}` | 查询会话附件 |
+| `POST /api/conversations/{conversation_id}/attachments` | 使用 multipart 上传文件 |
+| `GET /api/conversations/{conversation_id}/attachments` | 查询会话附件 |
+| `GET /api/conversations/{conversation_id}/attachments/{attachment_id}/download` | 下载附件 |
+| `DELETE /api/conversations/{conversation_id}/attachments/{attachment_id}` | 删除附件 |
+
+所有接口必须先使用当前用户 ID 和会话 ID 查询会话，再访问附件。文件使用随机存储名，
+数据库仅保存存储根目录内的相对路径；下载时再次解析并校验路径仍位于受控存储根目录。
+上传时同时校验扩展名和 MIME，流式计算 SHA-256，并执行单文件 20 MB、单会话累计
+100 MB 限制。归档会话可以读取、下载和删除已有附件，但不能新增附件。
 
 上传成功只代表文件已保存。解析状态可能依次为：
 
@@ -1093,3 +1098,4 @@ workspace/{user_id}/{conversation_id}/{task_id}/
 | 2026-09-17 | 0.6 | 完成用户消息保存、历史回放、连续序号和会话级资源隔离 |
 | 2026-09-17 | 0.7 | 完成会话重命名、归档、恢复、级联删除和文件目录清理 |
 | 2026-09-17 | 0.8 | 完成工程规范整改：移除默认密钥、隔离测试数据库并增强全新数据库迁移能力 |
+| 2026-09-17 | 0.9 | 完成附件上传、列表、下载和删除；落地文件校验、容量限制、路径安全与用户隔离 |

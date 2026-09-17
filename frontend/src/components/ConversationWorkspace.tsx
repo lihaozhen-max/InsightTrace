@@ -9,6 +9,7 @@ import {
   listMessages,
   updateConversation,
 } from "../api/conversations";
+import { AttachmentPanel } from "./AttachmentPanel";
 
 export function ConversationWorkspace() {
   const [title, setTitle] = useState("");
@@ -264,6 +265,10 @@ export function ConversationWorkspace() {
                 ) : (
                   <p className="archived-notice">该会话已归档。恢复后才能继续发送消息。</p>
                 )}
+                <AttachmentPanel
+                  conversationId={selectedConversation.id}
+                  isArchived={selectedConversation.status === "archived"}
+                />
               </>
             ) : (
               <div className="message-placeholder">

@@ -13,6 +13,7 @@ from app.db.session import SessionLocal
 from app.models.analysis import AnalysisTask
 from app.models.conversation import Attachment
 from app.models.enums import TaskStatus
+from app.services.analysis_context import assemble_analysis_context
 from app.services.task_lifecycle import (
     advance_task,
     complete_task,
@@ -81,6 +82,7 @@ async def execute_task(task_id: UUID) -> None:
             if task is None or task.task_status != TaskStatus.RUNNING:
                 return
 
+            await assemble_analysis_context(session, task)
             stream_id = str(uuid4())
             await record_task_event(
                 session,

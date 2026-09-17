@@ -7,9 +7,11 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import select
 
+from app.analysis.catalog import build_catalog_analysis, is_catalog_question
 from app.analysis.demo import build_demo_analysis
+from app.core.config import get_settings
 from app.core.errors import AppError
-from app.db.session import SessionLocal
+from app.db.session import SessionLocal, engine
 from app.models.analysis import AnalysisTask
 from app.models.conversation import Attachment
 from app.models.enums import TaskStatus
@@ -22,8 +24,10 @@ from app.services.task_lifecycle import (
     record_task_event,
     start_task,
 )
+from app.tools.sql_readonly import ReadOnlySQLTool
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 async def _claim_next_task() -> UUID | None:
@@ -90,53 +94,96 @@ async def execute_task(task_id: UUID) -> None:
                 event_type="message_start",
                 payload={"message_id": stream_id},
             )
-            await advance_task(
-                session,
-                task,
-                step="inspecting_sources",
-                description="正在检查本轮选择的数据源",
-            )
             tool_call_id = str(uuid4())
-            await record_task_event(
-                session,
-                task,
-                event_type="tool_start",
-                payload={
-                    "tool_call_id": tool_call_id,
-                    "tool_name": "attachment_inspector",
-                    "summary": "检查已解析附件的结构和规模",
-                },
-            )
-            attachment_ids = [
-                UUID(value) for value in task.input_payload_json.get("attachment_ids", [])
-            ]
-            attachments = list(
-                await session.scalars(
-                    select(Attachment).where(
-                        Attachment.id.in_(attachment_ids),
-                        Attachment.conversation_id == task.conversation_id,
-                        Attachment.deleted_at.is_(None),
-                    )
+            if is_catalog_question(task.input_text):
+                await advance_task(
+                    session,
+                    task,
+                    step="querying_data",
+                    description="正在从商品目录演示库读取漏斗数据",
                 )
-            ) if attachment_ids else []
-            await record_task_event(
-                session,
-                task,
-                event_type="tool_finish",
-                payload={
-                    "tool_call_id": tool_call_id,
-                    "tool_name": "attachment_inspector",
-                    "status": "success",
-                    "result_summary": f"已检查 {len(attachments)} 个附件",
-                },
-            )
+                await record_task_event(
+                    session,
+                    task,
+                    event_type="tool_start",
+                    payload={
+                        "tool_call_id": tool_call_id,
+                        "tool_name": "catalog_attribution",
+                        "summary": "执行白名单只读查询并计算商品目录指标",
+                    },
+                )
+                sql_tool = ReadOnlySQLTool(
+                    engine,
+                    statement_timeout_ms=settings.sql_statement_timeout_ms,
+                    max_rows=settings.sql_max_rows,
+                )
+                catalog_run = await build_catalog_analysis(task.input_text, sql_tool)
+                if catalog_run is None:  # pragma: no cover - guarded by intent check
+                    raise RuntimeError("catalog analysis intent changed during execution")
+                output = catalog_run.output
+                await record_task_event(
+                    session,
+                    task,
+                    event_type="tool_finish",
+                    payload={
+                        "tool_call_id": tool_call_id,
+                        "tool_name": "catalog_attribution",
+                        "status": "success",
+                        "result_summary": (
+                            f"读取 {catalog_run.rows_read} 行，完成 "
+                            f"{catalog_run.metric_count} 组指标计算"
+                        ),
+                    },
+                )
+                metric_description = "已完成整体、设备、类目、商品和渠道指标计算"
+            else:
+                await advance_task(
+                    session,
+                    task,
+                    step="inspecting_sources",
+                    description="正在检查本轮选择的数据源",
+                )
+                await record_task_event(
+                    session,
+                    task,
+                    event_type="tool_start",
+                    payload={
+                        "tool_call_id": tool_call_id,
+                        "tool_name": "attachment_inspector",
+                        "summary": "检查已解析附件的结构和规模",
+                    },
+                )
+                attachment_ids = [
+                    UUID(value) for value in task.input_payload_json.get("attachment_ids", [])
+                ]
+                attachments = list(
+                    await session.scalars(
+                        select(Attachment).where(
+                            Attachment.id.in_(attachment_ids),
+                            Attachment.conversation_id == task.conversation_id,
+                            Attachment.deleted_at.is_(None),
+                        )
+                    )
+                ) if attachment_ids else []
+                await record_task_event(
+                    session,
+                    task,
+                    event_type="tool_finish",
+                    payload={
+                        "tool_call_id": tool_call_id,
+                        "tool_name": "attachment_inspector",
+                        "status": "success",
+                        "result_summary": f"已检查 {len(attachments)} 个附件",
+                    },
+                )
+                output = build_demo_analysis(task.input_text, attachments)
+                metric_description = "正在生成演示模式的数据概览"
             await advance_task(
                 session,
                 task,
                 step="calculating_metrics",
-                description="正在生成演示模式的数据概览",
+                description=metric_description,
             )
-            output = build_demo_analysis(task.input_text, attachments)
             await advance_task(
                 session,
                 task,

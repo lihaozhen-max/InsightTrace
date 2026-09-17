@@ -45,7 +45,12 @@ def created_conversation_ids() -> Generator[list[UUID], None, None]:
     asyncio.run(clean_up())
 
 
-def _create_task(client: TestClient, created_conversation_ids: list[UUID]) -> dict:
+def _create_task(
+    client: TestClient,
+    created_conversation_ids: list[UUID],
+    *,
+    input_text: str = "分析收入变化",
+) -> dict:
     conversation = client.post(
         "/api/conversations",
         json={"title": f"执行器测试 {uuid4()}"},
@@ -53,7 +58,7 @@ def _create_task(client: TestClient, created_conversation_ids: list[UUID]) -> di
     created_conversation_ids.append(UUID(conversation["id"]))
     return client.post(
         "/api/tasks",
-        json={"conversation_id": conversation["id"], "input_text": "分析收入变化"},
+        json={"conversation_id": conversation["id"], "input_text": input_text},
     ).json()
 
 
@@ -120,3 +125,44 @@ def test_executor_honours_cooperative_cancellation(
 
         completed = client.get(f"/api/tasks/{task['id']}").json()
         assert completed["task_status"] == TaskStatus.CANCELLED
+
+
+def test_executor_builds_catalog_attribution_from_demo_database(
+    created_conversation_ids: list[UUID],
+) -> None:
+    with TestClient(app, follow_redirects=False) as client:
+        login_as(client, "admin")
+        task = _create_task(
+            client,
+            created_conversation_ids,
+            input_text="为什么 2026 年 8 月商品目录的整体转化率较 7 月下降？",
+        )
+
+        assert asyncio.run(process_next_queued_task()) is True
+
+        completed = client.get(f"/api/tasks/{task['id']}").json()
+        assert completed["task_status"] == "success"
+        logs = client.get(f"/api/tasks/{task['id']}/logs").json()
+        log_content = "\n".join(log["log_content"] for log in logs)
+        assert "catalog_attribution" in log_content
+        assert "读取 24 行" in log_content
+
+        async def verify_result() -> None:
+            async with SessionLocal() as session:
+                result = await session.scalar(
+                    select(AnalysisResult).where(
+                        AnalysisResult.task_id == UUID(task["id"])
+                    )
+                )
+                assert result is not None
+                assert result.confidence == 0.92
+                assert "移动端点击后的加购环节" in result.conclusion_text
+                assert "demo_catalog.funnel_metrics" in result.result_markdown
+                mobile_metric = next(
+                    metric
+                    for metric in result.key_metrics_json
+                    if metric["metric_name"] == "移动端点击到加购率"
+                )
+                assert mobile_metric["metric_value"] < mobile_metric["comparison_value"]
+
+        asyncio.run(verify_result())

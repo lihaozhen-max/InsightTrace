@@ -55,7 +55,7 @@ export function App() {
               </button>
             </>
           ) : (
-            <span className="version">MVP v1 · 认证阶段</span>
+            <span className="version">MVP v1 · M3 已完成</span>
           )}
         </div>
       </header>
@@ -68,7 +68,7 @@ export function App() {
             <p className="lead">正在检查登录状态……</p>
           ) : user.data ? (
             <p className="lead">
-              欢迎回来，{user.data.display_name}。认证和用户角色已经接入，下一阶段将开始构建真实会话工作台。
+              欢迎回来，{user.data.display_name}。会话、附件和实时分析任务已经接通，下一阶段将构建真实归因能力。
             </p>
           ) : (
             <>
@@ -115,7 +115,7 @@ export function App() {
         <div>
           <p className="eyebrow">下一阶段</p>
           <h2 id="next-steps-title">
-            {user.data ? "从身份认证走向真实会话" : "登录后继续构建分析链路"}
+            {user.data ? "实时任务闭环已经完成" : "登录后体验实时分析链路"}
           </h2>
         </div>
         <ol>

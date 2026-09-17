@@ -90,7 +90,7 @@ export function ConversationWorkspace() {
     <section className="workspace" aria-labelledby="workspace-title">
       <div className="workspace-heading">
         <div>
-          <p className="eyebrow">M2 · 会话工作台</p>
+          <p className="eyebrow">M3 · 实时分析工作台</p>
           <h2 id="workspace-title">我的分析会话</h2>
         </div>
         <form className="conversation-form" onSubmit={handleConversationSubmit}>

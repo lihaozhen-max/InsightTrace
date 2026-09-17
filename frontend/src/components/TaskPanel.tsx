@@ -11,6 +11,7 @@ import {
   TaskLog,
 } from "../api/tasks";
 import { issueWebSocketToken, RealtimeEvent } from "../api/realtime";
+import { ResultPanel } from "./ResultPanel";
 
 interface TaskPanelProps {
   conversationId: string;
@@ -233,6 +234,7 @@ export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
           {logs.data.map((log) => <li key={log.id}>{taskLogText(log)}</li>)}
         </ol>
       )}
+      {latestTask?.task_status === "success" && <ResultPanel taskId={latestTask.id} />}
     </section>
   );
 }

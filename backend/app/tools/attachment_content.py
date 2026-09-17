@@ -68,6 +68,22 @@ def iter_content_items(payload: dict[str, Any]) -> Iterable[tuple[str, str]]:
         yield from _json_items(payload.get("data"))
 
 
+def iter_tabular_rows(payload: dict[str, Any]) -> Iterable[tuple[str, dict[str, Any]]]:
+    kind = payload.get("kind")
+    if kind == "table":
+        for index, row in enumerate(payload.get("rows", []), start=1):
+            if isinstance(row, dict):
+                yield f"row:{index}", row
+    elif kind == "workbook":
+        for sheet in payload.get("sheets", []):
+            if not isinstance(sheet, dict):
+                continue
+            name = str(sheet.get("name", "sheet"))
+            for index, row in enumerate(sheet.get("rows", []), start=1):
+                if isinstance(row, dict):
+                    yield f"sheet:{name}/row:{index}", row
+
+
 class AttachmentContentTool:
     def __init__(
         self,

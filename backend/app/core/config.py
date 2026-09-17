@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     attachment_parse_max_text_chars: int = Field(default=1_000_000, gt=0)
     attachment_parse_max_cell_chars: int = Field(default=10_000, gt=0)
     attachment_parse_max_json_depth: int = Field(default=30, gt=0)
+    sql_statement_timeout_ms: int = Field(default=15_000, gt=0, le=300_000)
+    sql_max_rows: int = Field(default=2_000, gt=0, le=10_000)
 
     analysis_mode: Literal["demo", "model"] = "demo"
     openai_base_url: str | None = None

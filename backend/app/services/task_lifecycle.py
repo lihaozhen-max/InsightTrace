@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Any
 
@@ -78,6 +79,32 @@ async def advance_task(
         task,
         log_type="task_step",
         content=description,
+    )
+    await session.commit()
+    await session.refresh(task)
+    return task
+
+
+async def record_task_event(
+    session: AsyncSession,
+    task: AnalysisTask,
+    *,
+    event_type: str,
+    payload: dict[str, Any],
+) -> AnalysisTask:
+    _require_status(task, TaskStatus.RUNNING)
+    if task.cancel_requested_at is not None:
+        raise AppError(
+            code="TASK_CANCEL_REQUESTED",
+            message="任务已请求取消，不能继续执行",
+            status_code=409,
+        )
+    task.version += 1
+    await append_log(
+        session,
+        task,
+        log_type=event_type,
+        content=json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
     )
     await session.commit()
     await session.refresh(task)
@@ -184,6 +211,7 @@ async def complete_task(
         confidence=confidence,
     )
     session.add(result)
+    await session.flush()
     await create_assistant_message_pending(
         session,
         conversation=conversation,
@@ -194,6 +222,16 @@ async def complete_task(
     task.finished_at = datetime.now(UTC)
     task.retryable = False
     task.version += 1
+    await append_log(
+        session,
+        task,
+        log_type="result_ready",
+        content=json.dumps(
+            {"result_id": str(result.id), "result_version": result.result_version},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ),
+    )
     await append_log(
         session,
         task,

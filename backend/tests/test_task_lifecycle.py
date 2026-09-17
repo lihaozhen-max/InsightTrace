@@ -105,6 +105,7 @@ def test_success_transition_saves_result_and_assistant_message_atomically(
             "task_queued",
             "task_started",
             "task_step",
+            "result_ready",
             "task_succeeded",
         ]
 

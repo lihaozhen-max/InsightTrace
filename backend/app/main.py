@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -12,6 +13,7 @@ from app.core.logging import configure_logging
 from app.core.middleware import RequestIdMiddleware
 from app.core.storage import ensure_storage_directories
 from app.services.task_recovery import recover_interrupted_tasks
+from app.tasks.executor import TaskExecutor
 
 settings = get_settings()
 
@@ -20,9 +22,17 @@ settings = get_settings()
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.app_env)
     ensure_storage_directories(settings.storage_path)
+    executor = TaskExecutor()
+    executor_task: asyncio.Task[None] | None = None
     if settings.app_env != "test":
         await recover_interrupted_tasks()
-    yield
+        executor_task = asyncio.create_task(executor.run(), name="analysis-task-executor")
+    try:
+        yield
+    finally:
+        if executor_task is not None:
+            executor.stop()
+            await executor_task
 
 
 app = FastAPI(

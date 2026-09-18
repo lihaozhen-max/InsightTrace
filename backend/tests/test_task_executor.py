@@ -207,3 +207,88 @@ def test_executor_builds_behavior_attribution_from_demo_database(
                 assert conversion_metric["metric_value"] < conversion_metric["comparison_value"]
 
         asyncio.run(verify_result())
+
+
+def test_catalog_follow_up_inherits_previous_scenario(
+    created_conversation_ids: list[UUID],
+) -> None:
+    with TestClient(app, follow_redirects=False) as client:
+        login_as(client, "admin")
+        first_task = _create_task(
+            client,
+            created_conversation_ids,
+            input_text="为什么 2026 年 8 月商品目录的整体转化率较 7 月下降？",
+        )
+        assert asyncio.run(process_next_queued_task()) is True
+
+        second_task = client.post(
+            "/api/tasks",
+            json={
+                "conversation_id": first_task["conversation_id"],
+                "input_text": "再具体一点，谁贡献最大？",
+            },
+        ).json()
+        assert asyncio.run(process_next_queued_task()) is True
+
+        completed = client.get(f"/api/tasks/{second_task['id']}").json()
+        assert completed["task_status"] == "success"
+        logs = client.get(f"/api/tasks/{second_task['id']}/logs").json()
+        log_content = "\n".join(log["log_content"] for log in logs)
+        assert "catalog_attribution" in log_content
+        assert '"scenario_source":"previous_analysis"' in log_content
+
+        async def verify_result() -> None:
+            async with SessionLocal() as session:
+                result = await session.scalar(
+                    select(AnalysisResult).where(
+                        AnalysisResult.task_id == UUID(second_task["id"])
+                    )
+                )
+                assert result is not None
+                assert result.problem_definition == "再具体一点，谁贡献最大？"
+                assert "星云手机" in result.conclusion_text
+
+        asyncio.run(verify_result())
+
+
+def test_behavior_follow_up_inherits_previous_scenario(
+    created_conversation_ids: list[UUID],
+) -> None:
+    with TestClient(app, follow_redirects=False) as client:
+        login_as(client, "admin")
+        first_task = _create_task(
+            client,
+            created_conversation_ids,
+            input_text="为什么本周访问到下单的转化率下降？",
+        )
+        assert asyncio.run(process_next_queued_task()) is True
+
+        second_task = client.post(
+            "/api/tasks",
+            json={
+                "conversation_id": first_task["conversation_id"],
+                "input_text": "那最值得先检查哪一群人？",
+            },
+        ).json()
+        assert asyncio.run(process_next_queued_task()) is True
+
+        completed = client.get(f"/api/tasks/{second_task['id']}").json()
+        assert completed["task_status"] == "success"
+        logs = client.get(f"/api/tasks/{second_task['id']}/logs").json()
+        log_content = "\n".join(log["log_content"] for log in logs)
+        assert "behavior_attribution" in log_content
+        assert '"scenario_source":"previous_analysis"' in log_content
+
+        async def verify_result() -> None:
+            async with SessionLocal() as session:
+                result = await session.scalar(
+                    select(AnalysisResult).where(
+                        AnalysisResult.task_id == UUID(second_task["id"])
+                    )
+                )
+                assert result is not None
+                assert result.problem_definition == "那最值得先检查哪一群人？"
+                assert "paid_social" in result.conclusion_text
+                assert "新访客" in result.conclusion_text
+
+        asyncio.run(verify_result())

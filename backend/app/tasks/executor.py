@@ -7,9 +7,10 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import select
 
-from app.analysis.behavior import build_behavior_analysis, is_behavior_question
-from app.analysis.catalog import build_catalog_analysis, is_catalog_question
+from app.analysis.behavior import build_behavior_analysis
+from app.analysis.catalog import build_catalog_analysis
 from app.analysis.demo import build_demo_analysis
+from app.analysis.scenarios import resolve_analysis_scenario
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.db.session import SessionLocal, engine
@@ -87,7 +88,11 @@ async def execute_task(task_id: UUID) -> None:
             if task is None or task.task_status != TaskStatus.RUNNING:
                 return
 
-            await assemble_analysis_context(session, task)
+            analysis_context = await assemble_analysis_context(session, task)
+            scenario, scenario_source = resolve_analysis_scenario(
+                task.input_text,
+                analysis_context.previous_analysis,
+            )
             stream_id = str(uuid4())
             await record_task_event(
                 session,
@@ -96,7 +101,7 @@ async def execute_task(task_id: UUID) -> None:
                 payload={"message_id": stream_id},
             )
             tool_call_id = str(uuid4())
-            if is_catalog_question(task.input_text):
+            if scenario == "catalog":
                 await advance_task(
                     session,
                     task,
@@ -111,6 +116,7 @@ async def execute_task(task_id: UUID) -> None:
                         "tool_call_id": tool_call_id,
                         "tool_name": "catalog_attribution",
                         "summary": "执行白名单只读查询并计算商品目录指标",
+                        "scenario_source": scenario_source,
                     },
                 )
                 sql_tool = ReadOnlySQLTool(
@@ -118,7 +124,11 @@ async def execute_task(task_id: UUID) -> None:
                     statement_timeout_ms=settings.sql_statement_timeout_ms,
                     max_rows=settings.sql_max_rows,
                 )
-                catalog_run = await build_catalog_analysis(task.input_text, sql_tool)
+                catalog_run = await build_catalog_analysis(
+                    task.input_text,
+                    sql_tool,
+                    scenario_confirmed=True,
+                )
                 if catalog_run is None:  # pragma: no cover - guarded by intent check
                     raise RuntimeError("catalog analysis intent changed during execution")
                 output = catalog_run.output
@@ -137,7 +147,7 @@ async def execute_task(task_id: UUID) -> None:
                     },
                 )
                 metric_description = "已完成整体、设备、类目、商品和渠道指标计算"
-            elif is_behavior_question(task.input_text):
+            elif scenario == "behavior":
                 await advance_task(
                     session,
                     task,
@@ -152,6 +162,7 @@ async def execute_task(task_id: UUID) -> None:
                         "tool_call_id": tool_call_id,
                         "tool_name": "behavior_attribution",
                         "summary": "执行白名单只读查询并计算客户行为指标",
+                        "scenario_source": scenario_source,
                     },
                 )
                 sql_tool = ReadOnlySQLTool(
@@ -159,7 +170,11 @@ async def execute_task(task_id: UUID) -> None:
                     statement_timeout_ms=settings.sql_statement_timeout_ms,
                     max_rows=settings.sql_max_rows,
                 )
-                behavior_run = await build_behavior_analysis(task.input_text, sql_tool)
+                behavior_run = await build_behavior_analysis(
+                    task.input_text,
+                    sql_tool,
+                    scenario_confirmed=True,
+                )
                 if behavior_run is None:  # pragma: no cover - guarded by intent check
                     raise RuntimeError("behavior analysis intent changed during execution")
                 output = behavior_run.output

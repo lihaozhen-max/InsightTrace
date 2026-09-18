@@ -45,8 +45,10 @@ def is_behavior_question(question: str) -> bool:
 async def build_behavior_analysis(
     question: str,
     sql_tool: ReadOnlySQLTool,
+    *,
+    scenario_confirmed: bool = False,
 ) -> BehaviorAnalysisRun | None:
-    if not is_behavior_question(question):
+    if not scenario_confirmed and not is_behavior_question(question):
         return None
 
     query_result = await sql_tool.execute(

@@ -60,8 +60,10 @@ def _metric_card(
 async def build_catalog_analysis(
     question: str,
     sql_tool: ReadOnlySQLTool,
+    *,
+    scenario_confirmed: bool = False,
 ) -> CatalogAnalysisRun | None:
-    if not is_catalog_question(question):
+    if not scenario_confirmed and not is_catalog_question(question):
         return None
 
     query_result = await sql_tool.execute(

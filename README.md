@@ -126,6 +126,7 @@ npm run dev
 
 ## 文档
 
+- [小白版架构图与说明](./ARCHITECTURE_FOR_BEGINNERS.md)
 - [项目规划](./PROJECT_PLAN.md)
 - [技术设计](./TECHNICAL_DESIGN.md)
 - [API 接口说明](./API_REFERENCE.md)

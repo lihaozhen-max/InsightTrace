@@ -67,6 +67,7 @@ def _request_completion(
     base_url: str,
     api_key: str,
     model: str,
+    reasoning_effort: str,
     timeout_seconds: float,
     context: AnalysisContext,
     grounding_output: AnalysisOutput | None,
@@ -90,6 +91,10 @@ def _request_completion(
             ],
             "temperature": 0.2,
             "response_format": {"type": "json_object"},
+            "thinking": {
+                "type": "disabled" if reasoning_effort == "none" else "enabled"
+            },
+            "reasoning_effort": reasoning_effort,
         },
         ensure_ascii=False,
     ).encode("utf-8")
@@ -124,6 +129,7 @@ async def analyze_with_openai_compatible(
     base_url: str,
     api_key: str,
     model: str,
+    reasoning_effort: str = "low",
     timeout_seconds: float = 60,
     grounding_output: AnalysisOutput | None = None,
 ) -> AnalysisOutput:
@@ -134,6 +140,7 @@ async def analyze_with_openai_compatible(
         base_url=base_url,
         api_key=api_key,
         model=model,
+        reasoning_effort=reasoning_effort,
         timeout_seconds=timeout_seconds,
         context=context,
         grounding_output=grounding_output,

@@ -273,6 +273,7 @@ async def execute_task(task_id: UUID) -> None:
                     base_url=settings.openai_base_url or "",
                     api_key=settings.openai_api_key or "",
                     model=settings.openai_model or "",
+                    reasoning_effort=settings.openai_reasoning_effort,
                     timeout_seconds=settings.openai_timeout_seconds,
                     grounding_output=output,
                 )

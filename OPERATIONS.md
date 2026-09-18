@@ -39,7 +39,8 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 如需真实模型分析，将 `ANALYSIS_MODE` 改为 `model`，并配置
 `OPENAI_BASE_URL`、`OPENAI_API_KEY`、`OPENAI_MODEL`。`OPENAI_BASE_URL` 应指向兼容
-OpenAI Chat Completions 的 API 根路径（例如 `https://api.openai.com/v1`）。
+OpenAI Chat Completions 的 API 根路径（例如 `https://api.openai.com/v1`）。支持该参数的
+模型还可通过 `OPENAI_REASONING_EFFORT` 选择 `none`、`low`、`high` 或 `max`。
 
 ## 3. 启动和访问
 

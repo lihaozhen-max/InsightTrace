@@ -58,6 +58,7 @@ async def test_provider_calls_chat_completions_and_validates_output(monkeypatch)
         base_url="https://example.test/v1",
         api_key="secret",
         model="test-model",
+        reasoning_effort="low",
         timeout_seconds=12,
         grounding_output=openai_compatible.AnalysisOutput(**output),
     )
@@ -66,6 +67,8 @@ async def test_provider_calls_chat_completions_and_validates_output(monkeypatch)
     assert captured["url"] == "https://example.test/v1/chat/completions"
     assert captured["timeout"] == 12
     assert captured["body"]["model"] == "test-model"
+    assert captured["body"]["reasoning_effort"] == "low"
+    assert captured["body"]["thinking"] == {"type": "enabled"}
     assert "为什么收入下降" in captured["body"]["messages"][1]["content"]
     assert "系统工具已经计算出的可信结果" in captured["body"]["messages"][1]["content"]
 

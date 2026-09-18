@@ -84,6 +84,7 @@ ANALYSIS_MODE=model
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_API_KEY=<你的 API Key>
 OPENAI_MODEL=<模型名称>
+OPENAI_REASONING_EFFORT=low
 ```
 
 修改后重建后端：`docker compose up -d --build backend`。模型返回内容会经过

@@ -75,6 +75,20 @@ M5 功能验收、安全边界验收和交付材料已完成。详见
    - 后端存活检查：<http://localhost:8000/health/live>
    - 后端就绪检查：<http://localhost:8000/health/ready>
 
+### 接入大模型
+
+项目支持任何兼容 OpenAI Chat Completions API 的模型服务。编辑 `.env`：
+
+```dotenv
+ANALYSIS_MODE=model
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=<你的 API Key>
+OPENAI_MODEL=<模型名称>
+```
+
+修改后重建后端：`docker compose up -d --build backend`。模型返回内容会经过
+`AnalysisOutput` 结构校验后再保存；未配置完整时，模型任务会明确失败，不会伪装成模型结果。
+
 ## 本地开发
 
 后端要求 Python 3.12：

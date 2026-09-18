@@ -10,6 +10,7 @@ from sqlalchemy import select
 from app.analysis.behavior import build_behavior_analysis
 from app.analysis.catalog import build_catalog_analysis
 from app.analysis.demo import build_demo_analysis
+from app.analysis.providers.openai_compatible import analyze_with_openai_compatible
 from app.analysis.scenarios import resolve_analysis_scenario
 from app.core.config import get_settings
 from app.core.errors import AppError
@@ -89,6 +90,15 @@ async def execute_task(task_id: UUID) -> None:
                 return
 
             analysis_context = await assemble_analysis_context(session, task)
+            if task.analysis_mode.value == "model":
+                if not (
+                    settings.openai_base_url
+                    and settings.openai_api_key
+                    and settings.openai_model
+                ):
+                    raise RuntimeError(
+                        "模型模式需要配置 OPENAI_BASE_URL、OPENAI_API_KEY 和 OPENAI_MODEL"
+                    )
             scenario, scenario_source = resolve_analysis_scenario(
                 task.input_text,
                 analysis_context.previous_analysis,
@@ -251,8 +261,21 @@ async def execute_task(task_id: UUID) -> None:
                 session,
                 task,
                 step="generating_conclusion",
-                description="正在生成结构化结论",
+                description=(
+                    f"正在调用模型 {settings.openai_model} 生成结构化结论"
+                    if task.analysis_mode.value == "model"
+                    else "正在生成结构化结论"
+                ),
             )
+            if task.analysis_mode.value == "model":
+                output = await analyze_with_openai_compatible(
+                    analysis_context,
+                    base_url=settings.openai_base_url or "",
+                    api_key=settings.openai_api_key or "",
+                    model=settings.openai_model or "",
+                    timeout_seconds=settings.openai_timeout_seconds,
+                    grounding_output=output,
+                )
             for delta in (
                 "数据源检查已完成。",
                 output.conclusion_text,

@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     openai_base_url: str | None = None
     openai_api_key: str | None = Field(default=None, repr=False)
     openai_model: str | None = None
+    openai_timeout_seconds: float = Field(default=60, gt=0, le=300)
 
     @property
     def cors_origin_list(self) -> list[str]:

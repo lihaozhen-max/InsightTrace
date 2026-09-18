@@ -97,3 +97,14 @@ async def test_readonly_transaction_blocks_mutation_even_after_validation(
     )
     with pytest.raises(DBAPIError):
         await tool.execute(registered)
+
+
+@pytest.mark.skipif(
+    os.getenv("RUN_DB_TESTS") != "1",
+    reason="Set RUN_DB_TESTS=1 to run PostgreSQL readonly tool tests",
+)
+@pytest.mark.asyncio
+async def test_statement_timeout_aborts_slow_query() -> None:
+    slow_query = query("SELECT pg_sleep(0.1) AS delayed")
+    with pytest.raises(DBAPIError):
+        await ReadOnlySQLTool(engine, statement_timeout_ms=10).execute(slow_query)

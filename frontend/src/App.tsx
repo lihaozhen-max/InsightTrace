@@ -3,12 +3,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCurrentUser, logout } from "./api/auth";
 import { getReadiness } from "./api/health";
 import { ConversationWorkspace } from "./components/ConversationWorkspace";
+import { AdminPanel } from "./components/AdminPanel";
 
 const milestones = [
   "模拟 OAuth 登录与角色识别",
   "会话、消息和附件管理",
   "WebSocket 实时分析任务",
-  "商品目录优化黄金路径",
+  "商品目录与客户行为黄金路径",
+  "管理配置、运行日志与安全验收",
 ];
 
 export function App() {
@@ -55,7 +57,7 @@ export function App() {
               </button>
             </>
           ) : (
-            <span className="version">MVP v1 · M4 已完成</span>
+            <span className="version">MVP v1 · M5 验收版</span>
           )}
         </div>
       </header>
@@ -68,7 +70,7 @@ export function App() {
             <p className="lead">正在检查登录状态……</p>
           ) : user.data ? (
             <p className="lead">
-              欢迎回来，{user.data.display_name}。分析任务、指标、证据和报告已经接通，下一阶段进入演示与验收。
+              欢迎回来，{user.data.display_name}。两套真实数据场景、多轮归因、报告导出和管理验收已经接通。
             </p>
           ) : (
             <>
@@ -110,12 +112,13 @@ export function App() {
       </section>
 
       {user.data && <ConversationWorkspace />}
+      {user.data?.role === "admin" && <AdminPanel />}
 
       <section className="next-steps" aria-labelledby="next-steps-title">
         <div>
           <p className="eyebrow">下一阶段</p>
           <h2 id="next-steps-title">
-            {user.data ? "分析能力基础已经完成" : "登录后体验结构化分析链路"}
+            {user.data ? "MVP v1 功能与安全验收已完成" : "登录后体验结构化分析链路"}
           </h2>
         </div>
         <ol>

@@ -5,8 +5,8 @@ import pytest
 from fastapi import UploadFile
 from starlette.datastructures import Headers
 
-from app.core.errors import AppError
-from app.services.attachments import store_upload
+from app.core.errors import AppError, ResourceNotFoundError
+from app.services.attachments import resolve_attachment_path, store_upload
 
 
 @pytest.mark.asyncio
@@ -30,3 +30,8 @@ async def test_store_upload_rejects_files_over_the_configured_limit(tmp_path) ->
     assert captured.value.code == "FILE_TOO_LARGE"
     assert not list(tmp_path.rglob("*.part"))
     assert not list(tmp_path.rglob("*.txt"))
+
+
+def test_resolve_attachment_path_rejects_directory_traversal(tmp_path) -> None:
+    with pytest.raises(ResourceNotFoundError):
+        resolve_attachment_path(tmp_path, "../outside/secrets.csv")

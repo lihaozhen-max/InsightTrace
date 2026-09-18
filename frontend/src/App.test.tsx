@@ -161,4 +161,77 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "重新解析" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "开始分析" })).toBeInTheDocument();
   });
+
+  it("shows safe operations data to an administrator", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+        const url = input.toString();
+        if (url.endsWith("/api/me")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              id: "admin-1",
+              username: "demo.admin",
+              display_name: "演示系统管理员",
+              role: "admin",
+              status: "active",
+              created_at: "2026-09-18T00:00:00Z",
+            }),
+          };
+        }
+        if (url.endsWith("/api/conversations") || url.endsWith("/api/admin/tasks")) {
+          return { ok: true, status: 200, json: async () => [] };
+        }
+        if (url.endsWith("/api/admin/configs") || url.endsWith("/api/admin/reload")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              items: [{ key: "sql_max_rows", value: 2000, group: "query" }],
+              reloaded_at: null,
+            }),
+          };
+        }
+        if (url.endsWith("/api/admin/health")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              status: "healthy",
+              database: "ok",
+              storage: "ok",
+              analysis_mode: "demo",
+              model_configured: false,
+            }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            status: "ready",
+            service: "InsightTrace",
+            environment: "test",
+            components: { database: { status: "ok" }, storage: { status: "ok" } },
+          }),
+        };
+      }),
+    );
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "管理员控制台" })).toBeInTheDocument();
+    expect(await screen.findByText("sql_max_rows")).toBeInTheDocument();
+    expect(screen.getByText("演示模式")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新加载配置" }));
+  });
 });

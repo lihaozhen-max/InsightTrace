@@ -179,7 +179,22 @@ ws://localhost:3000/api/chat/ws/chat?websocket_token=令牌&conversation_id=会�
 结构化结果包含问题定义、关键指标、证据、结论、缺失数据、下一步建议、Markdown 正文、
 生成模式和整体置信度。必须先调用 `export`，`download` 才可用。
 
-## 9. 演示分析范围
+## 9. 管理员接口
+
+以下接口只允许 `admin` 角色访问，分析用户访问时返回 `403 FORBIDDEN`。
+
+| 方法 | 路径 | 用途 |
+| --- | --- | --- |
+| GET | `/api/admin/configs` | 查看当前生效的非敏感配置 |
+| POST | `/api/admin/reload` | 重新读取配置，新任务使用刷新后的值 |
+| GET | `/api/admin/health` | 查看数据库、存储、分析模式和模型配置状态 |
+| GET | `/api/admin/tasks?limit=20` | 查看最近任务及其最后一条脱敏日志 |
+
+配置响应不会包含 `APP_SECRET_KEY`、`DATABASE_URL`、`OPENAI_API_KEY`
+等敏感值。任务日志在持久化前会对已知密钥以及常见的密码、令牌和
+API Key 赋值进行脱敏。
+
+## 10. 演示分析范围
 
 `demo` 模式支持：
 

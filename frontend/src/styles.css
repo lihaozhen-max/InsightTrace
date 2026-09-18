@@ -763,6 +763,102 @@ h2 {
   border-top: 1px solid rgb(148 163 184 / 16%);
 }
 
+.admin-panel {
+  padding: 56px 0;
+  border-top: 1px solid rgb(148 163 184 / 16%);
+}
+
+.admin-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.admin-heading button {
+  padding: 10px 14px;
+  border: 1px solid rgb(94 234 212 / 36%);
+  border-radius: 9px;
+  color: #5eead4;
+  background: transparent;
+  cursor: pointer;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: 0.7fr 1.3fr;
+  gap: 18px;
+}
+
+.admin-grid article,
+.admin-task-list {
+  padding: 20px;
+  border: 1px solid rgb(148 163 184 / 18%);
+  border-radius: 14px;
+  background: rgb(15 28 46 / 72%);
+}
+
+.admin-grid h3,
+.admin-task-list h3 {
+  margin: 0 0 14px;
+}
+
+.admin-grid dl {
+  margin: 0;
+}
+
+.admin-grid dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 8px 0;
+  border-top: 1px solid rgb(148 163 184 / 10%);
+}
+
+.admin-grid dt {
+  color: #91a1b7;
+  overflow-wrap: anywhere;
+}
+
+.admin-grid dd {
+  margin: 0;
+  color: #cbd5e1;
+  text-align: right;
+}
+
+.admin-task-list {
+  margin-top: 18px;
+}
+
+.admin-task-list ol {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-task-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 0;
+  border-top: 1px solid rgb(148 163 184 / 10%);
+}
+
+.admin-task-list p {
+  margin: 5px 0 0;
+  color: #91a1b7;
+  font-size: 13px;
+}
+
+.admin-task-list time {
+  color: #71839b;
+  font-size: 12px;
+}
+
 .next-steps ol {
   margin: 0;
   padding: 0;
@@ -794,7 +890,14 @@ h2 {
   .hero,
   .next-steps,
   .workspace-heading,
-  .workspace-body {
+  .workspace-body,
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-heading,
+  .admin-task-list li {
+    align-items: stretch;
     grid-template-columns: 1fr;
   }
 

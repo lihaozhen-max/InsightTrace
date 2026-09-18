@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
+from app.core.redaction import redact_sensitive_text
 from app.models.analysis import AnalysisTask, TaskLog
 from app.models.conversation import Conversation
 from app.models.enums import AnalysisMode, LogLevel, TaskStatus
@@ -110,7 +111,7 @@ async def append_log(
         sequence_no=await _next_log_sequence(session, task.id),
         log_level=level,
         log_type=log_type,
-        log_content=content,
+        log_content=redact_sensitive_text(content),
     )
     session.add(log)
     await session.flush()

@@ -29,7 +29,6 @@ from app.services.task_lifecycle import (
 from app.tools.sql_readonly import ReadOnlySQLTool
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 
 async def _claim_next_task() -> UUID | None:
@@ -83,6 +82,7 @@ async def _finish_as_failed(task_id: UUID, error: Exception) -> None:
 
 async def execute_task(task_id: UUID) -> None:
     try:
+        settings = get_settings()
         async with SessionLocal() as session:
             task = await session.get(AnalysisTask, task_id)
             if task is None or task.task_status != TaskStatus.RUNNING:

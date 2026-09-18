@@ -35,7 +35,7 @@ export function App() {
   });
 
   return (
-    <main className="shell">
+    <main className={`shell ${user.data ? "authenticated-shell" : "landing-shell"}`}>
       <header className="topbar">
         <a className="brand" href="/" aria-label="InsightTrace 首页">
           <span className="brand-mark">IT</span>
@@ -44,8 +44,13 @@ export function App() {
         <div className="account-area">
           {user.data ? (
             <>
+              <span className={`header-health ${isReady ? "ready" : "pending"}`}>
+                <i />{isReady ? "服务正常" : "检查服务"}
+              </span>
+              <span className="user-avatar">{user.data.display_name.slice(0, 1)}</span>
               <span className="user-badge">
-                {user.data.display_name} · {user.data.role === "admin" ? "管理员" : "分析用户"}
+                <strong>{user.data.display_name}</strong>
+                <small>{user.data.role === "admin" ? "系统管理员" : "分析用户"}</small>
               </span>
               <button
                 className="text-button"
@@ -62,16 +67,12 @@ export function App() {
         </div>
       </header>
 
-      <section className="hero">
+      {!user.data && <section className="hero">
         <div>
           <p className="eyebrow">经营分析归因系统</p>
           <h1>让经营结论有数据、有证据、可追溯</h1>
           {user.isPending ? (
             <p className="lead">正在检查登录状态……</p>
-          ) : user.data ? (
-            <p className="lead">
-              欢迎回来，{user.data.display_name}。两套真实数据场景、多轮归因、报告导出和管理验收已经接通。
-            </p>
           ) : (
             <>
               <p className="lead">
@@ -109,16 +110,16 @@ export function App() {
             </dl>
           )}
         </article>
-      </section>
+      </section>}
 
       {user.data && <ConversationWorkspace />}
       {user.data?.role === "admin" && <AdminPanel />}
 
-      <section className="next-steps" aria-labelledby="next-steps-title">
+      {!user.data && <section className="next-steps" aria-labelledby="next-steps-title">
         <div>
           <p className="eyebrow">下一阶段</p>
           <h2 id="next-steps-title">
-            {user.data ? "MVP v1 功能与安全验收已完成" : "登录后体验结构化分析链路"}
+            登录后体验结构化分析链路
           </h2>
         </div>
         <ol>
@@ -129,7 +130,7 @@ export function App() {
             </li>
           ))}
         </ol>
-      </section>
+      </section>}
     </main>
   );
 }

@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -36,6 +36,12 @@ const stepLabels: Record<string, string> = {
   saving_result: "保存结果",
 };
 
+const quickPrompts = [
+  "为什么本月商品目录转化率下降？",
+  "为什么本周访问到下单的转化率下降？",
+  "哪些渠道和设备对结果影响最大？",
+];
+
 function taskLogText(log: TaskLog): string {
   if (!["message_start", "message_delta", "tool_start", "tool_finish", "result_ready"].includes(log.log_type)) {
     return log.log_content;
@@ -61,18 +67,14 @@ export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
     queryKey: ["tasks", conversationId],
     queryFn: () => listTasks(conversationId),
     refetchInterval: (query) =>
-      query.state.data?.some((task) => ["queued", "running"].includes(task.task_status))
-        ? 2_000
-        : false,
+      query.state.data?.some((task) => ["queued", "running"].includes(task.task_status)) ? 2_000 : false,
   });
   const latestTask = tasks.data?.[0];
   const logs = useQuery({
     queryKey: ["task-logs", latestTask?.id],
     queryFn: () => listTaskLogs(latestTask!.id),
     enabled: latestTask !== undefined,
-    refetchInterval: latestTask && ["queued", "running"].includes(latestTask.task_status)
-      ? 2_000
-      : false,
+    refetchInterval: latestTask && ["queued", "running"].includes(latestTask.task_status) ? 2_000 : false,
   });
 
   async function refreshTaskData() {
@@ -92,18 +94,28 @@ export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
   });
   const cancel = useMutation({ mutationFn: cancelTask, onSuccess: refreshTaskData });
   const retry = useMutation({ mutationFn: retryTask, onSuccess: refreshTaskData });
+  const hasActiveTask = latestTask && ["queued", "running"].includes(latestTask.task_status);
+
+  function submitQuestion() {
+    const normalized = inputText.trim();
+    if (normalized && !hasActiveTask && !create.isPending) {
+      create.mutate({ conversationId, inputText: normalized });
+    }
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const normalized = inputText.trim();
-    if (normalized) create.mutate({ conversationId, inputText: normalized });
+    submitQuestion();
   }
 
-  const hasActiveTask = latestTask && ["queued", "running"].includes(latestTask.task_status);
+  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      submitQuestion();
+    }
+  }
 
-  useEffect(() => {
-    setLiveUpdates([]);
-  }, [latestTask?.id]);
+  useEffect(() => setLiveUpdates([]), [latestTask?.id]);
 
   useEffect(() => {
     if (!latestTask || !["queued", "running"].includes(latestTask.task_status)) {
@@ -130,16 +142,10 @@ export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
             setLiveUpdates((items) => [...items, String(event.payload.delta_text ?? "")]);
           }
           if (event.event_type === "tool_start") {
-            setLiveUpdates((items) => [
-              ...items,
-              `正在执行：${String(event.payload.summary ?? event.payload.tool_name)}`,
-            ]);
+            setLiveUpdates((items) => [...items, `正在执行：${String(event.payload.summary ?? event.payload.tool_name)}`]);
           }
           if (event.event_type === "tool_finish") {
-            setLiveUpdates((items) => [
-              ...items,
-              String(event.payload.result_summary ?? "工具执行完成"),
-            ]);
+            setLiveUpdates((items) => [...items, String(event.payload.result_summary ?? "工具执行完成")]);
           }
           if (event.event_type === "result_ready") {
             setLiveUpdates((items) => [...items, "结构化分析结果已经保存"]);
@@ -166,75 +172,87 @@ export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
 
   return (
     <section className="task-panel" aria-labelledby="analysis-input-title">
-      {isArchived ? (
-        <p className="archived-notice">该会话已归档。恢复后才能创建分析任务。</p>
-      ) : (
-        <form className="message-form" onSubmit={handleSubmit}>
-          <label id="analysis-input-title" htmlFor="analysis-input">输入经营问题</label>
-          <textarea
-            id="analysis-input"
-            value={inputText}
-            maxLength={10_000}
-            rows={4}
-            placeholder="例如：请帮我分析销量下降可能由哪些指标造成"
-            onChange={(event) => setInputText(event.target.value)}
-          />
-          <button
-            type="submit"
-            disabled={!inputText.trim() || create.isPending || Boolean(hasActiveTask)}
-          >
-            {create.isPending ? "正在创建…" : hasActiveTask ? "已有任务进行中" : "开始分析"}
-          </button>
-          {create.isError && <span className="error">任务创建失败，请稍后重试。</span>}
-        </form>
-      )}
-
       {latestTask && (
-        <div className="task-status-card">
-          <div>
-            <span className={`task-status ${latestTask.task_status}`}>
-              {statusLabels[latestTask.task_status]}
-            </span>
-            <strong>{latestTask.input_text}</strong>
-            {latestTask.current_step && (
-              <span className="task-current-step">
-                {stepLabels[latestTask.current_step] ?? latestTask.current_step}
-              </span>
+        <div className="analysis-run">
+          <div className="analysis-run-heading">
+            <span className="assistant-avatar">IT</span>
+            <div>
+              <div className="message-meta">
+                <strong>InsightTrace</strong>
+                <span className={`task-status ${latestTask.task_status}`}>{statusLabels[latestTask.task_status]}</span>
+              </div>
+              <p>{latestTask.current_step ? stepLabels[latestTask.current_step] ?? latestTask.current_step : latestTask.input_text}</p>
+            </div>
+            {(latestTask.task_status === "queued" || latestTask.task_status === "running") && (
+              <button className="secondary-button" type="button" disabled={cancel.isPending} onClick={() => cancel.mutate(latestTask.id)}>
+                {cancel.isPending ? "取消中…" : "停止"}
+              </button>
+            )}
+            {(latestTask.task_status === "failed" || latestTask.task_status === "cancelled") && (
+              <button className="secondary-button" type="button" disabled={retry.isPending} onClick={() => retry.mutate(latestTask.id)}>
+                {retry.isPending ? "创建中…" : "重新分析"}
+              </button>
             )}
           </div>
-          {(latestTask.task_status === "queued" || latestTask.task_status === "running") && (
-            <button type="button" disabled={cancel.isPending} onClick={() => cancel.mutate(latestTask.id)}>
-              {cancel.isPending ? "取消中…" : "取消任务"}
-            </button>
+
+          {hasActiveTask && (
+            <div className="realtime-strip">
+              <span className={`activity-pulse ${realtimeStatus}`} />
+              {realtimeStatus === "connected" ? "实时分析通道已连接" : "正在建立实时连接……"}
+            </div>
           )}
-          {(latestTask.task_status === "failed" || latestTask.task_status === "cancelled") && (
-            <button type="button" disabled={retry.isPending} onClick={() => retry.mutate(latestTask.id)}>
-              {retry.isPending ? "创建中…" : "重新分析"}
-            </button>
+
+          {liveUpdates.length > 0 && (
+            <div className="live-analysis" aria-live="polite">
+              {liveUpdates.map((update, index) => <p key={`${index}-${update}`}>{update}</p>)}
+            </div>
           )}
+
+          {logs.data && logs.data.length > 0 && (
+            <details className="process-log">
+              <summary>查看执行过程 <span>{logs.data.length} 条</span></summary>
+              <ol>{logs.data.map((log) => <li key={log.id}>{taskLogText(log)}</li>)}</ol>
+            </details>
+          )}
+
+          {(cancel.isError || retry.isError) && <p className="error">任务操作失败，请稍后重试。</p>}
+          {latestTask.task_status === "success" && <ResultPanel taskId={latestTask.id} />}
         </div>
       )}
-      {latestTask?.task_status === "queued" && <p className="task-note">任务已进入执行队列。</p>}
-      {hasActiveTask && (
-        <p className={`realtime-status ${realtimeStatus}`}>
-          {realtimeStatus === "connected" ? "实时连接已建立" : "正在建立实时连接…"}
-        </p>
-      )}
-      {liveUpdates.length > 0 && (
-        <div className="live-analysis" aria-live="polite">
-          <strong>实时分析进度</strong>
-          <ol>
-            {liveUpdates.map((update, index) => <li key={`${index}-${update}`}>{update}</li>)}
-          </ol>
+
+      {isArchived ? (
+        <p className="archived-notice">该会话已归档。恢复会话后才能继续追问。</p>
+      ) : (
+        <div className="composer-area">
+          {!latestTask && (
+            <div className="quick-prompts">
+              {quickPrompts.map((prompt) => (
+                <button type="button" key={prompt} onClick={() => setInputText(prompt)}>{prompt}</button>
+              ))}
+            </div>
+          )}
+          <form className="message-form" onSubmit={handleSubmit}>
+            <label className="sr-only" id="analysis-input-title" htmlFor="analysis-input">输入经营问题</label>
+            <textarea
+              id="analysis-input"
+              value={inputText}
+              maxLength={10_000}
+              rows={3}
+              placeholder="输入你想追问的经营问题……"
+              onKeyDown={handleComposerKeyDown}
+              onChange={(event) => setInputText(event.target.value)}
+            />
+            <div className="composer-footer">
+              <span>Enter 发送 · Shift + Enter 换行</span>
+              <button type="submit" disabled={!inputText.trim() || create.isPending || Boolean(hasActiveTask)}>
+                <span>{create.isPending ? "发送中" : hasActiveTask ? "分析中" : "发送"}</span>
+                <b aria-hidden="true">↑</b>
+              </button>
+            </div>
+          </form>
+          {create.isError && <p className="error composer-error">任务创建失败，请稍后重试。</p>}
         </div>
       )}
-      {(cancel.isError || retry.isError) && <p className="error">任务操作失败，请稍后重试。</p>}
-      {logs.data && logs.data.length > 0 && (
-        <ol className="task-log-list">
-          {logs.data.map((log) => <li key={log.id}>{taskLogText(log)}</li>)}
-        </ol>
-      )}
-      {latestTask?.task_status === "success" && <ResultPanel taskId={latestTask.id} />}
     </section>
   );
 }

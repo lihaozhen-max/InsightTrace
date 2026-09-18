@@ -26,6 +26,7 @@ REALTIME_LOG_TYPES = {
     "message_delta",
     "tool_start",
     "tool_finish",
+    "report_audit",
     "result_ready",
 }
 

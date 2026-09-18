@@ -170,16 +170,15 @@ def _dimension_changes(
         if value is None:
             continue
         totals[(str(row.get(dimension_field, "未知")), period)] += value
+    dimensions = sorted({dimension for dimension, _ in totals})
     total_delta = sum(
         (
             totals[(dimension, current_period)] - totals[(dimension, previous_period)]
-            for dimension, period in totals
-            if period == current_period
+            for dimension in dimensions
         ),
         Decimal(0),
     )
     changes: list[dict[str, Any]] = []
-    dimensions = sorted({dimension for dimension, _ in totals})
     for dimension in dimensions:
         previous = totals[(dimension, previous_period)]
         current = totals[(dimension, current_period)]
@@ -389,10 +388,25 @@ def build_attachment_analysis(
             break
     if funnel_sheet is None:
         return None
+    required_fields = [period_field, *fields.values()]
+    valid_rows = [
+        row
+        for row in funnel_sheet.rows
+        if row.get(period_field)
+        and all(_decimal(row.get(field)) is not None for field in fields.values())
+    ]
+    invalid_rows = len(funnel_sheet.rows) - len(valid_rows)
+    calculation_sheet = SheetData(
+        attachment_name=funnel_sheet.attachment_name,
+        name=funnel_sheet.name,
+        columns=funnel_sheet.columns,
+        rows=valid_rows,
+        declared_rows=funnel_sheet.declared_rows,
+    )
     periods = sorted(
         {
             _period(row.get(period_field))
-            for row in funnel_sheet.rows
+            for row in valid_rows
             if row.get(period_field)
         }
     )
@@ -401,18 +415,11 @@ def build_attachment_analysis(
     previous_period, current_period = _select_periods(question, periods)
     totals = {
         period: {
-            name: _sum(funnel_sheet.rows, field, period_field, period)
+            name: _sum(valid_rows, field, period_field, period)
             for name, field in fields.items()
         }
         for period in (previous_period, current_period)
     }
-    required_fields = [period_field, *fields.values()]
-    invalid_rows = sum(
-        1
-        for row in funnel_sheet.rows
-        if not row.get(period_field)
-        or any(_decimal(row.get(field)) is None for field in fields.values())
-    )
     rates = {
         period: {
             "order_click": _rate(values["order"], values["click"]),
@@ -449,7 +456,7 @@ def build_attachment_analysis(
             rates[previous_period]["order_click"] * 100,
             "%",
             formula=f"SUM({fields['order']}) / SUM({fields['click']})",
-            source=funnel_sheet,
+            source=calculation_sheet,
             period=previous_period,
         ),
         _metric(
@@ -457,7 +464,7 @@ def build_attachment_analysis(
             rates[current_period]["order_click"] * 100,
             "%",
             formula=f"SUM({fields['order']}) / SUM({fields['click']})",
-            source=funnel_sheet,
+            source=calculation_sheet,
             period=current_period,
         ),
         _metric(
@@ -465,14 +472,14 @@ def build_attachment_analysis(
             overall_delta,
             "pp",
             formula=f"{current_period}转化率 - {previous_period}转化率",
-            source=funnel_sheet,
+            source=calculation_sheet,
         ),
         _metric(
             f"{current_period}点击→加购转化率",
             rates[current_period]["click_cart"] * 100,
             "%",
             formula=f"SUM({fields['cart']}) / SUM({fields['click']})",
-            source=funnel_sheet,
+            source=calculation_sheet,
             period=current_period,
         ),
         _metric(
@@ -480,7 +487,7 @@ def build_attachment_analysis(
             rates[current_period]["cart_order"] * 100,
             "%",
             formula=f"SUM({fields['order']}) / SUM({fields['cart']})",
-            source=funnel_sheet,
+            source=calculation_sheet,
             period=current_period,
         ),
         _metric(
@@ -488,7 +495,7 @@ def build_attachment_analysis(
             rates[current_period]["click_exposure"] * 100,
             "%",
             formula=f"SUM({fields['click']}) / SUM({fields['exposure']})",
-            source=funnel_sheet,
+            source=calculation_sheet,
             period=current_period,
         ),
         _metric(
@@ -496,14 +503,14 @@ def build_attachment_analysis(
             click_cart_contribution,
             "pp",
             formula="Shapley((加购/点击) × (下单/加购))",
-            source=funnel_sheet,
+            source=calculation_sheet,
         ),
         _metric(
             "加购→下单贡献",
             cart_order_contribution,
             "pp",
             formula="Shapley((加购/点击) × (下单/加购))",
-            source=funnel_sheet,
+            source=calculation_sheet,
         ),
     ]
     metrics[3].update(
@@ -525,20 +532,20 @@ def build_attachment_analysis(
             f"{_rounded(rates[previous_period]['order_click'] * 100)}%，"
             f"{current_period}为{_rounded(rates[current_period]['order_click'] * 100)}%，"
             f"变化{_rounded(overall_delta)}个百分点。",
-            source=funnel_sheet,
+            source=calculation_sheet,
             level="calculation",
             formula=f"SUM({fields['order']}) / SUM({fields['click']})",
-            sample_size=len(funnel_sheet.rows),
+            sample_size=len(valid_rows),
         ),
         _evidence(
             "E-002",
             f"对称分解显示：点击→加购贡献{_rounded(click_cart_contribution)}pp"
             f"（约{_rounded(click_cart_share, 1)}%），加购→下单贡献"
             f"{_rounded(cart_order_contribution)}pp（约{_rounded(cart_order_share, 1)}%）。",
-            source=funnel_sheet,
+            source=calculation_sheet,
             level="calculation",
             formula="two-factor Shapley decomposition",
-            sample_size=len(funnel_sheet.rows),
+            sample_size=len(valid_rows),
         ),
         _evidence(
             "E-003",
@@ -558,7 +565,7 @@ def build_attachment_analysis(
     top_product: dict[str, Any] | None = None
     for dimension_name, dimension_field in dimension_fields.items():
         changes = _dimension_changes(
-            funnel_sheet,
+            calculation_sheet,
             period_field=period_field,
             value_field=fields["order"],
             dimension_field=dimension_field,
@@ -576,10 +583,10 @@ def build_attachment_analysis(
                     f"{top_change['previous']}变为{top_change['current']}，变化"
                     f"{top_change['delta']}单，对同向整体变化的贡献为"
                     f"{top_change['contribution_percent']}%。",
-                    source=funnel_sheet,
+                    source=calculation_sheet,
                     level="calculation",
                     formula=f"SUM({fields['order']}) BY {dimension_field}",
-                    sample_size=len(funnel_sheet.rows),
+                    sample_size=len(valid_rows),
                 )
             )
     stock_field = _find_column(funnel_sheet.columns, STOCK_ALIASES)
@@ -587,7 +594,7 @@ def build_attachment_analysis(
     if product_field := dimension_fields.get("product"):
         if stock_field:
             stock_change = _stockout_change(
-                funnel_sheet,
+                calculation_sheet,
                 period_field=period_field,
                 product_field=product_field,
                 stock_field=stock_field,
@@ -601,11 +608,11 @@ def build_attachment_analysis(
                 f"{stock_change['product']}缺货率从{stock_change['previous']}%升至"
                 f"{stock_change['current']}%，上升{stock_change['change_pp']}pp；"
                 "这是相关线索，不单独构成因果证明。",
-                source=funnel_sheet,
+                source=calculation_sheet,
                 level="inference",
                 formula=f"AVG({stock_field}) BY {product_field}",
                 confidence=0.78,
-                sample_size=len(funnel_sheet.rows),
+                sample_size=len(valid_rows),
                 limitations="缺少库存日志和补货时间，仅能判定同期变化。",
             )
         )

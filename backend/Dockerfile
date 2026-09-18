@@ -19,6 +19,7 @@ COPY app ./app
 COPY alembic.ini ./
 COPY alembic ./alembic
 COPY tests ./tests
+COPY evals ./evals
 
 CMD ["pytest", "-q"]
 

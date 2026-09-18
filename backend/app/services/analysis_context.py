@@ -23,6 +23,36 @@ ATTACHMENT_CONTEXT_MAX_ROWS = 2_000
 ATTACHMENT_CONTEXT_MAX_CHARS = 240_000
 
 
+def _attachment_metadata_excerpt(
+    payload: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Keep source shape visible after the shared row/character budget is exhausted."""
+
+    kind = payload.get("kind")
+    if kind == "table":
+        return {
+            "kind": "table",
+            "columns": payload.get("columns", []),
+            "row_count": payload.get("row_count", 0),
+            "rows": [],
+        }
+    if kind == "workbook":
+        return {
+            "kind": "workbook",
+            "sheets": [
+                {
+                    "name": sheet.get("name", "sheet"),
+                    "columns": sheet.get("columns", []),
+                    "row_count": sheet.get("row_count", 0),
+                    "rows": [],
+                }
+                for sheet in payload.get("sheets", [])
+                if isinstance(sheet, dict)
+            ],
+        }
+    return None
+
+
 def build_attachment_excerpt(
     payload: dict[str, Any],
     *,
@@ -104,6 +134,27 @@ def summarize_messages(messages: list[Message], *, max_chars: int = 4_000) -> st
         sections.append(item)
         used += len(item) + 1
     return "\n".join(sections)
+
+
+def omit_attachment_rows_for_grounded_model(context: AnalysisContext) -> AnalysisContext:
+    """Remove raw rows when deterministic tools have already produced trusted metrics."""
+
+    return context.model_copy(
+        update={
+            "attachments": [
+                attachment.model_copy(
+                    update={
+                        "data_excerpt": None,
+                        "data_truncated": False,
+                        "data_omitted_reason": (
+                            "原始行已由确定性分析工具计算；模型只需解释随附的可信指标和证据。"
+                        ),
+                    }
+                )
+                for attachment in context.attachments
+            ]
+        }
+    )
 
 
 async def _load_or_create_summary(
@@ -219,11 +270,15 @@ async def assemble_analysis_context(
         if not isinstance(payload, dict):
             continue
         columns = payload.get("columns", [])
-        excerpt, truncated = build_attachment_excerpt(
-            payload,
-            max_rows=max(remaining_rows, 1),
-            max_chars=max(remaining_chars, 1),
-        )
+        if remaining_rows <= 0 or remaining_chars <= 0:
+            excerpt = _attachment_metadata_excerpt(payload)
+            truncated = True
+        else:
+            excerpt, truncated = build_attachment_excerpt(
+                payload,
+                max_rows=remaining_rows,
+                max_chars=remaining_chars,
+            )
         excerpt_json = json.dumps(excerpt, ensure_ascii=False, default=str)
         excerpt_rows = 0
         if isinstance(excerpt, dict):

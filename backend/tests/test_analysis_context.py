@@ -9,9 +9,11 @@ from app.models.analysis import AnalysisTask
 from app.models.conversation import ContextSummary, Conversation, Message
 from app.models.enums import AnalysisMode, MessageRole, MessageType, TaskStatus
 from app.models.identity import User
+from app.schemas.context import AnalysisContext, ContextAttachment
 from app.services.analysis_context import (
     assemble_analysis_context,
     build_attachment_excerpt,
+    omit_attachment_rows_for_grounded_model,
     summarize_messages,
 )
 
@@ -63,6 +65,33 @@ def test_marks_attachment_excerpt_as_truncated() -> None:
     assert truncated is True
     assert isinstance(excerpt, dict)
     assert excerpt["rows"] == [{"值": 1}]
+
+
+def test_omits_raw_rows_after_deterministic_grounding() -> None:
+    context = AnalysisContext(
+        conversation_id=uuid4(),
+        task_id=uuid4(),
+        current_question="为什么下降？",
+        earlier_summary=None,
+        recent_messages=[],
+        previous_analysis=None,
+        attachments=[
+            ContextAttachment(
+                attachment_id=uuid4(),
+                file_name="funnel.xlsx",
+                content_kind="table",
+                source_format="xlsx",
+                data_excerpt={"kind": "table", "rows": [{"订单量": 10}] * 100},
+            )
+        ],
+    )
+
+    compact = omit_attachment_rows_for_grounded_model(context)
+
+    assert context.attachments[0].data_excerpt is not None
+    assert compact.attachments[0].data_excerpt is None
+    assert compact.attachments[0].data_omitted_reason is not None
+    assert len(compact.model_dump_json()) < len(context.model_dump_json()) / 2
 
 
 @pytest.mark.skipif(

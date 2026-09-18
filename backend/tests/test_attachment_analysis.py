@@ -1,5 +1,5 @@
 from app.analysis.attachment import build_attachment_analysis
-from app.analysis.audit import audit_model_output, reconcile_model_output
+from app.analysis.audit import audit_metadata, audit_model_output, reconcile_model_output
 from app.models.conversation import Attachment
 from app.schemas.analysis import AnalysisOutput
 
@@ -165,3 +165,63 @@ def test_report_auditor_accepts_grounded_narrative() -> None:
     assert audit.accepted is True
     assert reconciled.evidence_list[-1]["model_output_accepted"] is True
     assert "已通过数值溯源" in reconciled.result_markdown
+    assert audit_metadata(reconciled)["model_output_accepted"] is True
+
+
+def test_report_auditor_allows_explicitly_negated_causal_phrase() -> None:
+    grounding = build_attachment_analysis("分析8月为什么下降", [_attachment()])
+    assert grounding is not None
+    generated = grounding.model_copy(
+        update={
+            "conclusion_text": "现有证据不足，不能认为完全由抽样数据中的页面错误造成。",
+            "result_markdown": "现有证据不足，不能认为完全由抽样数据中的页面错误造成。",
+        }
+    )
+
+    assert audit_model_output(generated, grounding).accepted is True
+
+
+def test_dimension_contribution_includes_values_missing_from_current_period() -> None:
+    attachment = Attachment(
+        file_name="disappearing-product.xlsx",
+        parsed_content_json={
+            "kind": "table",
+            "name": "漏斗",
+            "columns": ["月份", "商品名称", "曝光量", "点击量", "加购量", "下单量"],
+            "rows": [
+                {
+                    "月份": "2026-07",
+                    "商品名称": "A",
+                    "曝光量": 1000,
+                    "点击量": 100,
+                    "加购量": 20,
+                    "下单量": 10,
+                },
+                {
+                    "月份": "2026-07",
+                    "商品名称": "B",
+                    "曝光量": 1000,
+                    "点击量": 100,
+                    "加购量": 20,
+                    "下单量": 10,
+                },
+                {
+                    "月份": "2026-08",
+                    "商品名称": "A",
+                    "曝光量": 1000,
+                    "点击量": 100,
+                    "加购量": 20,
+                    "下单量": 10,
+                },
+            ],
+        },
+    )
+
+    output = build_attachment_analysis("分析8月商品变化", [attachment])
+
+    assert output is not None
+    product_evidence = next(
+        item for item in output.evidence_list if "商品名称贡献排名" in item["evidence_text"]
+    )
+    assert "B下单量从10.0变为0.0" in product_evidence["evidence_text"]
+    assert "贡献为100.0%" in product_evidence["evidence_text"]

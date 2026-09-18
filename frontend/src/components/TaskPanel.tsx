@@ -43,8 +43,8 @@ const quickPrompts = [
   "哪些渠道和设备对结果影响最大？",
 ];
 
-function taskLogText(log: TaskLog): string {
-  if (!["message_start", "message_delta", "tool_start", "tool_finish", "result_ready"].includes(log.log_type)) {
+export function taskLogText(log: TaskLog): string {
+  if (!["message_start", "message_delta", "tool_start", "tool_finish", "report_audit", "result_ready"].includes(log.log_type)) {
     return log.log_content;
   }
   try {
@@ -53,6 +53,12 @@ function taskLogText(log: TaskLog): string {
     if (log.log_type === "message_delta") return String(payload.delta_text ?? "生成分析说明");
     if (log.log_type === "tool_start") return `开始使用工具：${String(payload.summary ?? payload.tool_name)}`;
     if (log.log_type === "tool_finish") return String(payload.result_summary ?? "工具执行完成");
+    if (log.log_type === "report_audit") {
+      const result = payload.result as Record<string, unknown> | undefined;
+      return result?.model_output_accepted === false
+        ? "报告审校未通过，已安全回退为确定性结论"
+        : "报告已通过数值溯源和因果边界审校";
+    }
     return "分析结果已经保存";
   } catch {
     return log.log_content;
@@ -170,6 +176,15 @@ export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
           }
           if (event.event_type === "tool_finish") {
             setLiveUpdates((items) => [...items, String(event.payload.result_summary ?? "工具执行完成")]);
+          }
+          if (event.event_type === "report_audit") {
+            const result = event.payload.result as Record<string, unknown> | undefined;
+            setLiveUpdates((items) => [
+              ...items,
+              result?.model_output_accepted === false
+                ? "模型表述未通过审校，已使用确定性结论"
+                : "报告审校通过",
+            ]);
           }
           if (event.event_type === "result_ready") {
             setLiveUpdates((items) => [...items, "结构化分析结果已经保存"]);

@@ -1,0 +1,90 @@
+[
+  {
+    "case_id": "zh_funnel_decline_with_stockout",
+    "file_name": "中文漏斗.xlsx",
+    "question": "分析2026年8月为什么下降",
+    "payload": {
+      "kind": "table",
+      "name": "商品漏斗",
+      "columns": ["月份", "商品名称", "曝光量", "点击量", "加购量", "下单量", "缺货率"],
+      "rows": [
+        {"月份": "2026-07", "商品名称": "A", "曝光量": 1000, "点击量": 100, "加购量": 20, "下单量": 10, "缺货率": 0.01},
+        {"月份": "2026-07", "商品名称": "B", "曝光量": 1000, "点击量": 100, "加购量": 20, "下单量": 10, "缺货率": 0.01},
+        {"月份": "2026-08", "商品名称": "A", "曝光量": 1000, "点击量": 120, "加购量": 12, "下单量": 4, "缺货率": 0.08},
+        {"月份": "2026-08", "商品名称": "B", "曝光量": 1000, "点击量": 120, "加购量": 24, "下单量": 12, "缺货率": 0.01}
+      ]
+    },
+    "expected_metrics": {
+      "2026-07整体下单转化率": 10.0,
+      "2026-08整体下单转化率": 6.67,
+      "整体下单转化率变化": -3.33
+    },
+    "expected_evidence_contains": ["A下单量从10.0变为4.0", "相关线索，不单独构成因果证明"],
+    "expected_fact_levels": ["observed", "calculation", "inference"]
+  },
+  {
+    "case_id": "english_aliases_requested_periods",
+    "file_name": "english.csv",
+    "question": "请对比2026年2月和3月的转化",
+    "payload": {
+      "kind": "table",
+      "name": "funnel",
+      "columns": ["month", "product", "impressions", "clicks", "add_to_cart", "orders"],
+      "rows": [
+        {"month": "2026-01", "product": "P", "impressions": 500, "clicks": 50, "add_to_cart": 10, "orders": 5},
+        {"month": "2026-02", "product": "P", "impressions": 1000, "clicks": 100, "add_to_cart": 20, "orders": 10},
+        {"month": "2026-03", "product": "P", "impressions": 2000, "clicks": 200, "add_to_cart": 20, "orders": 8}
+      ]
+    },
+    "expected_metrics": {
+      "2026-02整体下单转化率": 10.0,
+      "2026-03整体下单转化率": 4.0,
+      "整体下单转化率变化": -6.0
+    },
+    "expected_evidence_contains": ["2026-02下单/点击为10.0%", "2026-03为4.0%"],
+    "expected_fact_levels": ["observed", "calculation"]
+  },
+  {
+    "case_id": "dimension_disappears_in_current_period",
+    "file_name": "商品退出.xlsx",
+    "question": "分析8月商品变化",
+    "payload": {
+      "kind": "table",
+      "name": "漏斗",
+      "columns": ["月份", "商品名称", "曝光量", "点击量", "加购量", "下单量"],
+      "rows": [
+        {"月份": "2026-07", "商品名称": "A", "曝光量": 1000, "点击量": 100, "加购量": 20, "下单量": 10},
+        {"月份": "2026-07", "商品名称": "B", "曝光量": 1000, "点击量": 100, "加购量": 20, "下单量": 10},
+        {"月份": "2026-08", "商品名称": "A", "曝光量": 1000, "点击量": 100, "加购量": 20, "下单量": 10}
+      ]
+    },
+    "expected_metrics": {
+      "2026-07整体下单转化率": 10.0,
+      "2026-08整体下单转化率": 10.0
+    },
+    "expected_evidence_contains": ["B下单量从10.0变为0.0，变化-10.0单，对同向整体变化的贡献为100.0%"],
+    "expected_fact_levels": ["observed", "calculation"]
+  },
+  {
+    "case_id": "invalid_numeric_row_is_disclosed",
+    "file_name": "脏数据.xlsx",
+    "question": "分析8月变化",
+    "payload": {
+      "kind": "table",
+      "name": "漏斗",
+      "columns": ["月份", "商品名称", "曝光量", "点击量", "加购量", "下单量"],
+      "rows": [
+        {"月份": "2026-07", "商品名称": "A", "曝光量": 1000, "点击量": 100, "加购量": 20, "下单量": 10},
+        {"月份": "2026-07", "商品名称": "B", "曝光量": 1000, "点击量": "坏值", "加购量": 10, "下单量": 4},
+        {"月份": "2026-08", "商品名称": "A", "曝光量": 1000, "点击量": 100, "加购量": 10, "下单量": 4}
+      ]
+    },
+    "expected_metrics": {
+      "2026-07整体下单转化率": 10.0,
+      "2026-08整体下单转化率": 4.0,
+      "整体下单转化率变化": -6.0
+    },
+    "expected_evidence_contains": ["核心字段缺失或非数字行为1行", "对应值已跳过"],
+    "expected_fact_levels": ["observed", "calculation"]
+  }
+]

@@ -8,6 +8,7 @@ from typing import Any
 from app.schemas.analysis import AnalysisOutput
 
 PROHIBITED_CAUSAL_PHRASES = ("必然导致", "已经证明", "完全由")
+CAUSAL_NEGATIONS = ("不", "未", "无", "非", "无法", "不能", "并非", "尚未", "不足以")
 NUMBER_PATTERN = re.compile(r"(?<![A-Za-z])[-+]?\d+(?:\.\d+)?")
 
 
@@ -32,6 +33,19 @@ def _display_number(value: Decimal) -> str:
     return text.rstrip("0").rstrip(".") if "." in text else text
 
 
+def _contains_unqualified_causal_phrase(text: str, phrase: str) -> bool:
+    """Treat an explicit negation as a boundary, not as an overclaim."""
+
+    start = 0
+    while (index := text.find(phrase, start)) >= 0:
+        prefix = text[max(0, index - 12) : index]
+        clause_prefix = re.split(r"[，。；！？\n]", prefix)[-1]
+        if not any(negation in clause_prefix for negation in CAUSAL_NEGATIONS):
+            return True
+        start = index + len(phrase)
+    return False
+
+
 def audit_model_output(generated: AnalysisOutput, grounding: AnalysisOutput) -> AuditResult:
     """Reject narrative additions that drift from deterministic evidence."""
 
@@ -40,7 +54,7 @@ def audit_model_output(generated: AnalysisOutput, grounding: AnalysisOutput) -> 
         [generated.conclusion_text, generated.missing_data_text, generated.result_markdown]
     )
     for phrase in PROHIBITED_CAUSAL_PHRASES:
-        if phrase in generated_text:
+        if _contains_unqualified_causal_phrase(generated_text, phrase):
             findings.append(f"包含过度因果表述：{phrase}")
     grounding_json = grounding.model_dump_json(exclude_none=True)
     known_numbers = {abs(value) for value in _numbers(grounding_json)}
@@ -120,8 +134,18 @@ def reconcile_model_output(
 def audit_metadata(output: AnalysisOutput) -> dict[str, Any]:
     """Compact deterministic snapshot useful in task logs and tests."""
 
+    audit_evidence = next(
+        (
+            item
+            for item in reversed(output.evidence_list)
+            if item.get("source_type") == "report_audit"
+        ),
+        {},
+    )
     return {
         "metric_count": len(output.key_metrics),
         "evidence_count": len(output.evidence_list),
         "confidence": output.overall_confidence,
+        "model_output_accepted": audit_evidence.get("model_output_accepted"),
+        "audit_findings": audit_evidence.get("audit_findings", []),
     }

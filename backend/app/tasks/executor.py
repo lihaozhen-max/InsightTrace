@@ -20,7 +20,10 @@ from app.db.session import SessionLocal, engine
 from app.models.analysis import AnalysisTask
 from app.models.conversation import Attachment
 from app.models.enums import TaskStatus
-from app.services.analysis_context import assemble_analysis_context
+from app.services.analysis_context import (
+    assemble_analysis_context,
+    omit_attachment_rows_for_grounded_model,
+)
 from app.services.task_lifecycle import (
     advance_task,
     complete_task,
@@ -102,6 +105,7 @@ async def execute_task(task_id: UUID) -> None:
                         "模型模式需要配置 OPENAI_BASE_URL、OPENAI_API_KEY 和 OPENAI_MODEL"
                     )
             raw_attachment_ids = task.input_payload_json.get("attachment_ids", [])
+            deterministic_attachment_output = None
             if raw_attachment_ids:
                 scenario, scenario_source = None, "selected_attachments"
             else:
@@ -291,8 +295,16 @@ async def execute_task(task_id: UUID) -> None:
             )
             if task.analysis_mode.value == "model":
                 grounding_output = output
+                model_context = (
+                    omit_attachment_rows_for_grounded_model(analysis_context)
+                    if deterministic_attachment_output is not None
+                    else analysis_context
+                )
+                model_context_chars = len(
+                    model_context.model_dump_json(exclude_none=True)
+                )
                 generated_output = await analyze_with_openai_compatible(
-                    analysis_context,
+                    model_context,
                     base_url=settings.openai_base_url or "",
                     api_key=settings.openai_api_key or "",
                     model=settings.openai_model or "",
@@ -308,6 +320,9 @@ async def execute_task(task_id: UUID) -> None:
                     payload={
                         "summary": "已完成数值溯源、因果边界和抽样措辞审校",
                         "result": audit_metadata(output),
+                        "model_context_chars": model_context_chars,
+                        "attachment_rows_omitted": deterministic_attachment_output
+                        is not None,
                     },
                 )
             for delta in (

@@ -21,6 +21,7 @@ class ContextAttachment(BaseModel):
     columns: list[str] = Field(default_factory=list)
     data_excerpt: dict[str, Any] | list[Any] | str | None = None
     data_truncated: bool = False
+    data_omitted_reason: str | None = None
 
 
 class PreviousAnalysisContext(BaseModel):

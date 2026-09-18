@@ -13,6 +13,7 @@ export interface RealtimeEvent {
     | "message_delta"
     | "tool_start"
     | "tool_finish"
+    | "report_audit"
     | "task_status"
     | "result_ready"
     | "error"

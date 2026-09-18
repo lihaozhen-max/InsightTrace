@@ -116,6 +116,12 @@ docker run --rm insighttrace-backend-test ruff check app tests alembic
 docker compose --profile test run --rm --build backend-test
 ```
 
+附件分析 Golden Set 可单独运行：
+
+```powershell
+docker compose --profile test run --rm backend-test python -m evals.run_golden
+```
+
 前端要求 Node.js 22：
 
 ```powershell
@@ -127,6 +133,7 @@ npm run dev
 ## 文档
 
 - [小白版架构图与说明](./ARCHITECTURE_FOR_BEGINNERS.md)
+- [AI Agent 评估优化报告](./docs/INSIGHTTRACE_EVALUATION_REPORT.md)
 - [项目规划](./PROJECT_PLAN.md)
 - [技术设计](./TECHNICAL_DESIGN.md)
 - [API 接口说明](./API_REFERENCE.md)

@@ -10,6 +10,7 @@ import {
   TaskStatus,
   TaskLog,
 } from "../api/tasks";
+import { listAttachments } from "../api/attachments";
 import { issueWebSocketToken, RealtimeEvent } from "../api/realtime";
 import { ResultPanel } from "./ResultPanel";
 
@@ -69,6 +70,19 @@ export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
     refetchInterval: (query) =>
       query.state.data?.some((task) => ["queued", "running"].includes(task.task_status)) ? 2_000 : false,
   });
+  const attachments = useQuery({
+    queryKey: ["attachments", conversationId],
+    queryFn: () => listAttachments(conversationId),
+  });
+  const readyAttachmentIds = (attachments.data ?? [])
+    .filter((attachment) => attachment.parse_status === "success")
+    .map((attachment) => attachment.id);
+  let composerHint = "Enter 发送 · Shift + Enter 换行";
+  if (attachments.isPending) composerHint = "正在读取附件……";
+  if (attachments.isError) composerHint = "附件状态读取失败";
+  if (readyAttachmentIds.length > 0) {
+    composerHint = `本轮将使用 ${readyAttachmentIds.length} 个已解析附件`;
+  }
   const latestTask = tasks.data?.[0];
   const logs = useQuery({
     queryKey: ["task-logs", latestTask?.id],
@@ -98,8 +112,18 @@ export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
 
   function submitQuestion() {
     const normalized = inputText.trim();
-    if (normalized && !hasActiveTask && !create.isPending) {
-      create.mutate({ conversationId, inputText: normalized });
+    if (
+      normalized &&
+      !hasActiveTask &&
+      !create.isPending &&
+      !attachments.isPending &&
+      !attachments.isError
+    ) {
+      create.mutate({
+        conversationId,
+        inputText: normalized,
+        attachmentIds: readyAttachmentIds,
+      });
     }
   }
 
@@ -243,8 +267,17 @@ export function TaskPanel({ conversationId, isArchived }: TaskPanelProps) {
               onChange={(event) => setInputText(event.target.value)}
             />
             <div className="composer-footer">
-              <span>Enter 发送 · Shift + Enter 换行</span>
-              <button type="submit" disabled={!inputText.trim() || create.isPending || Boolean(hasActiveTask)}>
+              <span>{composerHint}</span>
+              <button
+                type="submit"
+                disabled={
+                  !inputText.trim() ||
+                  create.isPending ||
+                  Boolean(hasActiveTask) ||
+                  attachments.isPending ||
+                  attachments.isError
+                }
+              >
                 <span>{create.isPending ? "发送中" : hasActiveTask ? "分析中" : "发送"}</span>
                 <b aria-hidden="true">↑</b>
               </button>

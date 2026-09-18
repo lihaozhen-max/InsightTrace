@@ -16,7 +16,7 @@ class TaskCreateRequest(BaseModel):
     conversation_id: UUID
     input_text: TaskInput
     attachment_ids: list[UUID] = Field(default_factory=list, max_length=20)
-    analysis_mode: Literal["demo", "model"] = "demo"
+    analysis_mode: Literal["demo", "model"] | None = None
 
 
 class TaskResponse(BaseModel):

@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, status
 
 from app.api.dependencies import CurrentUser, DatabaseSession
+from app.core.config import get_settings
 from app.core.errors import AppError, ResourceNotFoundError
 from app.models.enums import AnalysisMode, AttachmentParseStatus, ConversationStatus, TaskStatus
 from app.repositories.attachments import list_selected_for_conversation
@@ -100,7 +101,7 @@ async def create_analysis_task(
         user_id=current_user.id,
         input_text=payload.input_text,
         attachment_ids=payload.attachment_ids,
-        analysis_mode=AnalysisMode(payload.analysis_mode),
+        analysis_mode=AnalysisMode(payload.analysis_mode or get_settings().analysis_mode),
     )
     return TaskCreateResponse.model_validate(task)
 

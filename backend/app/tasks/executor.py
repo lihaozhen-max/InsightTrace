@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.analysis.behavior import build_behavior_analysis
 from app.analysis.catalog import build_catalog_analysis
-from app.analysis.demo import build_demo_analysis
+from app.analysis.demo import build_attachment_grounding, build_demo_analysis
 from app.analysis.providers.openai_compatible import analyze_with_openai_compatible
 from app.analysis.scenarios import resolve_analysis_scenario
 from app.core.config import get_settings
@@ -99,10 +99,14 @@ async def execute_task(task_id: UUID) -> None:
                     raise RuntimeError(
                         "模型模式需要配置 OPENAI_BASE_URL、OPENAI_API_KEY 和 OPENAI_MODEL"
                     )
-            scenario, scenario_source = resolve_analysis_scenario(
-                task.input_text,
-                analysis_context.previous_analysis,
-            )
+            raw_attachment_ids = task.input_payload_json.get("attachment_ids", [])
+            if raw_attachment_ids:
+                scenario, scenario_source = None, "selected_attachments"
+            else:
+                scenario, scenario_source = resolve_analysis_scenario(
+                    task.input_text,
+                    analysis_context.previous_analysis,
+                )
             stream_id = str(uuid4())
             await record_task_event(
                 session,
@@ -243,8 +247,16 @@ async def execute_task(task_id: UUID) -> None:
                         "result_summary": f"已检查 {len(attachments)} 个附件",
                     },
                 )
-                output = build_demo_analysis(task.input_text, attachments)
-                metric_description = "正在生成演示模式的数据概览"
+                output = (
+                    build_attachment_grounding(task.input_text, attachments)
+                    if attachments and task.analysis_mode.value == "model"
+                    else build_demo_analysis(task.input_text, attachments)
+                )
+                metric_description = (
+                    "已读取附件真实行数据，正在准备模型分析"
+                    if attachments and task.analysis_mode.value == "model"
+                    else "正在生成演示模式的数据概览"
+                )
             await advance_task(
                 session,
                 task,

@@ -19,6 +19,8 @@ class ContextAttachment(BaseModel):
     source_format: str
     row_count: int | None = None
     columns: list[str] = Field(default_factory=list)
+    data_excerpt: dict[str, Any] | list[Any] | str | None = None
+    data_truncated: bool = False
 
 
 class PreviousAnalysisContext(BaseModel):

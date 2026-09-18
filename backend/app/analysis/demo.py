@@ -100,3 +100,52 @@ def build_demo_analysis(question: str, attachments: list[Attachment]) -> Analysi
         result_markdown=result_markdown,
         overall_confidence=confidence,
     )
+
+
+def build_attachment_grounding(
+    question: str,
+    attachments: list[Attachment],
+) -> AnalysisOutput:
+    """Build factual attachment metadata before model-based analysis."""
+
+    source_summaries: list[str] = []
+    evidence: list[dict[str, Any]] = []
+    total_rows = 0
+    for index, attachment in enumerate(attachments, start=1):
+        rows, columns = _attachment_size(attachment.parsed_content_json)
+        total_rows += rows
+        summary = f"{attachment.file_name}：已解析 {rows} 行，最多 {columns} 列"
+        source_summaries.append(summary)
+        evidence.append(
+            {
+                "evidence_id": f"E-{index:03d}",
+                "source_type": "attachment",
+                "source_name": attachment.file_name,
+                "evidence_text": summary,
+                "fact_level": "observed",
+            }
+        )
+    key_metrics = [
+        {"metric_name": "已读取数据源", "metric_value": len(attachments), "metric_unit": "个"},
+        {"metric_name": "已解析记录", "metric_value": total_rows, "metric_unit": "行"},
+    ]
+    conclusion = (
+        f"已读取 {len(attachments)} 个附件、{total_rows} 行记录。"
+        "附件的受控数据摘录将交给模型进行指标比较和归因分析。"
+    )
+    next_actions = ["核对模型引用的字段和数值", "根据首轮结论继续下钻维度"]
+    result_markdown = (
+        f"# 附件分析准备结果\n\n## 问题\n\n{question}\n\n"
+        f"## 数据来源\n\n- " + "\n- ".join(source_summaries) + "\n\n"
+        f"## 当前状态\n\n{conclusion}"
+    )
+    return AnalysisOutput(
+        problem_definition=question,
+        key_metrics=key_metrics,
+        evidence_list=evidence,
+        conclusion_text=conclusion,
+        missing_data_text="模型必须仅依据附件摘录作答；被截断的数据需要在结论中说明。",
+        next_actions=next_actions,
+        result_markdown=result_markdown,
+        overall_confidence=0.7,
+    )

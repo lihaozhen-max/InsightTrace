@@ -9,7 +9,11 @@ from app.models.analysis import AnalysisTask
 from app.models.conversation import ContextSummary, Conversation, Message
 from app.models.enums import AnalysisMode, MessageRole, MessageType, TaskStatus
 from app.models.identity import User
-from app.services.analysis_context import assemble_analysis_context, summarize_messages
+from app.services.analysis_context import (
+    assemble_analysis_context,
+    build_attachment_excerpt,
+    summarize_messages,
+)
 
 
 def test_summarize_messages_obeys_character_limit() -> None:
@@ -22,6 +26,43 @@ def test_summarize_messages_obeys_character_limit() -> None:
     summary = summarize_messages(messages, max_chars=50)
     assert len(summary) <= 50
     assert summary.startswith("用户[1]：")
+
+
+def test_builds_bounded_workbook_excerpt_with_real_rows() -> None:
+    excerpt, truncated = build_attachment_excerpt(
+        {
+            "kind": "workbook",
+            "sheets": [
+                {
+                    "name": "商品漏斗",
+                    "columns": ["月份", "渠道", "下单量"],
+                    "row_count": 2,
+                    "rows": [
+                        {"月份": "2026-07", "渠道": "organic", "下单量": 10},
+                        {"月份": "2026-08", "渠道": "paid_social", "下单量": 4},
+                    ],
+                }
+            ],
+        },
+        max_rows=10,
+        max_chars=10_000,
+    )
+
+    assert truncated is False
+    assert isinstance(excerpt, dict)
+    assert excerpt["sheets"][0]["rows"][1]["下单量"] == 4
+
+
+def test_marks_attachment_excerpt_as_truncated() -> None:
+    excerpt, truncated = build_attachment_excerpt(
+        {"kind": "table", "columns": ["值"], "row_count": 2, "rows": [{"值": 1}, {"值": 2}]},
+        max_rows=1,
+        max_chars=1_000,
+    )
+
+    assert truncated is True
+    assert isinstance(excerpt, dict)
+    assert excerpt["rows"] == [{"值": 1}]
 
 
 @pytest.mark.skipif(

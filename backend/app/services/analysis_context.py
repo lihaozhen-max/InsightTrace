@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -17,6 +19,75 @@ from app.schemas.context import (
 )
 
 ROLE_LABELS = {"user": "用户", "assistant": "分析助手", "system": "系统", "tool": "工具"}
+ATTACHMENT_CONTEXT_MAX_ROWS = 2_000
+ATTACHMENT_CONTEXT_MAX_CHARS = 240_000
+
+
+def build_attachment_excerpt(
+    payload: dict[str, Any],
+    *,
+    max_rows: int,
+    max_chars: int,
+) -> tuple[dict[str, Any] | list[Any] | str | None, bool]:
+    """Build a bounded, JSON-safe excerpt of parsed attachment content for the model."""
+
+    if max_rows <= 0 or max_chars <= 0:
+        raise ValueError("Attachment context limits must be positive")
+    kind = payload.get("kind")
+    if kind == "text":
+        content = str(payload.get("content", ""))
+        return content[:max_chars], len(content) > max_chars
+    if kind == "json":
+        serialized = json.dumps(payload.get("data"), ensure_ascii=False, default=str)
+        if len(serialized) <= max_chars:
+            return payload.get("data"), False
+        return serialized[:max_chars], True
+
+    remaining_rows = max_rows
+    remaining_chars = max_chars
+    truncated = False
+
+    def bounded_rows(rows: Any) -> list[dict[str, Any]]:
+        nonlocal remaining_rows, remaining_chars, truncated
+        selected: list[dict[str, Any]] = []
+        if not isinstance(rows, list):
+            return selected
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            serialized = json.dumps(row, ensure_ascii=False, default=str)
+            if remaining_rows <= 0 or len(serialized) > remaining_chars:
+                truncated = True
+                break
+            selected.append(row)
+            remaining_rows -= 1
+            remaining_chars -= len(serialized)
+        if len(selected) < len(rows):
+            truncated = True
+        return selected
+
+    if kind == "table":
+        return {
+            "kind": "table",
+            "columns": payload.get("columns", []),
+            "row_count": payload.get("row_count", 0),
+            "rows": bounded_rows(payload.get("rows", [])),
+        }, truncated
+    if kind == "workbook":
+        sheets: list[dict[str, Any]] = []
+        for sheet in payload.get("sheets", []):
+            if not isinstance(sheet, dict):
+                continue
+            sheets.append(
+                {
+                    "name": sheet.get("name", "sheet"),
+                    "columns": sheet.get("columns", []),
+                    "row_count": sheet.get("row_count", 0),
+                    "rows": bounded_rows(sheet.get("rows", [])),
+                }
+            )
+        return {"kind": "workbook", "sheets": sheets}, truncated
+    return None, False
 
 
 def summarize_messages(messages: list[Message], *, max_chars: int = 4_000) -> str:
@@ -141,11 +212,31 @@ async def assemble_analysis_context(
         )
 
     attachment_contexts: list[ContextAttachment] = []
+    remaining_rows = ATTACHMENT_CONTEXT_MAX_ROWS
+    remaining_chars = ATTACHMENT_CONTEXT_MAX_CHARS
     for attachment in attachments:
         payload = attachment.parsed_content_json
         if not isinstance(payload, dict):
             continue
         columns = payload.get("columns", [])
+        excerpt, truncated = build_attachment_excerpt(
+            payload,
+            max_rows=max(remaining_rows, 1),
+            max_chars=max(remaining_chars, 1),
+        )
+        excerpt_json = json.dumps(excerpt, ensure_ascii=False, default=str)
+        excerpt_rows = 0
+        if isinstance(excerpt, dict):
+            if excerpt.get("kind") == "table":
+                excerpt_rows = len(excerpt.get("rows", []))
+            elif excerpt.get("kind") == "workbook":
+                excerpt_rows = sum(
+                    len(sheet.get("rows", []))
+                    for sheet in excerpt.get("sheets", [])
+                    if isinstance(sheet, dict)
+                )
+        remaining_rows = max(0, remaining_rows - excerpt_rows)
+        remaining_chars = max(0, remaining_chars - len(excerpt_json))
         attachment_contexts.append(
             ContextAttachment(
                 attachment_id=attachment.id,
@@ -154,6 +245,8 @@ async def assemble_analysis_context(
                 source_format=str(payload.get("source_format", "unknown")),
                 row_count=payload.get("row_count"),
                 columns=[str(item) for item in columns] if isinstance(columns, list) else [],
+                data_excerpt=excerpt,
+                data_truncated=truncated,
             )
         )
 

@@ -41,9 +41,11 @@ export async function listTasks(conversationId: string): Promise<AnalysisTask[]>
 export async function createTask({
   conversationId,
   inputText,
+  attachmentIds,
 }: {
   conversationId: string;
   inputText: string;
+  attachmentIds: string[];
 }): Promise<AnalysisTask> {
   const response = await fetch("/api/tasks", {
     method: "POST",
@@ -52,8 +54,7 @@ export async function createTask({
     body: JSON.stringify({
       conversation_id: conversationId,
       input_text: inputText,
-      attachment_ids: [],
-      analysis_mode: "demo",
+      attachment_ids: attachmentIds,
     }),
   });
   if (!response.ok) throw new Error("创建分析任务失败");

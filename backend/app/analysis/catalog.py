@@ -3,9 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
+from app.analysis.deterministic import (
+    change_rate,
+    comparison_metric,
+    point_map,
+    ratio_metric,
+    table_payload,
+)
 from app.schemas.analysis import AnalysisOutput
-from app.schemas.tool import MetricCalculationResult, MetricDefinition
-from app.tools.metrics import calculate_metric
 from app.tools.sql_readonly import ReadOnlySQLTool, RegisteredReadOnlyQuery
 
 CATALOG_QUERY = RegisteredReadOnlyQuery(
@@ -35,49 +40,6 @@ def is_catalog_question(question: str) -> bool:
     return any(keyword in normalized for keyword in _CATALOG_KEYWORDS)
 
 
-def _table_payload(columns: list[str], rows: list[dict[str, object]]) -> dict[str, object]:
-    return {
-        "kind": "table",
-        "columns": columns,
-        "row_count": len(rows),
-        "rows": rows,
-    }
-
-
-def _ratio(
-    payload: dict[str, object],
-    *,
-    name: str,
-    numerator: str,
-    denominator: str,
-    group_by: list[str],
-    filters: dict[str, str] | None = None,
-) -> MetricCalculationResult:
-    return calculate_metric(
-        [payload],
-        MetricDefinition(
-            metric_name=name,
-            operation="ratio",
-            numerator_field=numerator,
-            denominator_field=denominator,
-            group_by=group_by,
-            filters=filters or {},
-            unit="%",
-        ),
-    )
-
-
-def _point_map(result: MetricCalculationResult, *dimensions: str) -> dict[tuple[str, ...], float]:
-    return {
-        tuple(point.dimensions[dimension] for dimension in dimensions): point.value
-        for point in result.points
-    }
-
-
-def _change(current: float, previous: float) -> float:
-    return (current - previous) / previous * 100 if previous else 0.0
-
-
 def _metric_card(
     name: str,
     current: float,
@@ -85,15 +47,14 @@ def _metric_card(
     *,
     unit: str = "%",
 ) -> dict[str, object]:
-    return {
-        "metric_name": name,
-        "metric_value": round(current, 2),
-        "metric_unit": unit,
-        "metric_period": "2026-08",
-        "comparison_value": round(previous, 2),
-        "comparison_period": "2026-07",
-        "change_rate": round(_change(current, previous), 2),
-    }
+    return comparison_metric(
+        name,
+        current,
+        previous,
+        current_period="2026-08",
+        comparison_period="2026-07",
+        unit=unit,
+    )
 
 
 async def build_catalog_analysis(
@@ -110,22 +71,22 @@ async def build_catalog_analysis(
             "end_month": date(2026, 8, 1),
         },
     )
-    payload = _table_payload(query_result.columns, query_result.rows)
-    overall_orders = _ratio(
+    payload = table_payload(query_result.columns, query_result.rows)
+    overall_orders = ratio_metric(
         payload,
         name="整体曝光到下单转化率",
         numerator="orders",
         denominator="impressions",
         group_by=["period_month"],
     )
-    overall_clicks = _ratio(
+    overall_clicks = ratio_metric(
         payload,
         name="整体点击率",
         numerator="clicks",
         denominator="impressions",
         group_by=["period_month"],
     )
-    mobile_carts = _ratio(
+    mobile_carts = ratio_metric(
         payload,
         name="移动端点击到加购率",
         numerator="add_to_carts",
@@ -133,21 +94,21 @@ async def build_catalog_analysis(
         group_by=["period_month"],
         filters={"device": "mobile"},
     )
-    category_orders = _ratio(
+    category_orders = ratio_metric(
         payload,
         name="类目曝光到下单转化率",
         numerator="orders",
         denominator="impressions",
         group_by=["period_month", "category"],
     )
-    device_carts = _ratio(
+    device_carts = ratio_metric(
         payload,
         name="设备点击到加购率",
         numerator="add_to_carts",
         denominator="clicks",
         group_by=["period_month", "device"],
     )
-    product_carts = _ratio(
+    product_carts = ratio_metric(
         payload,
         name="商品移动端点击到加购率",
         numerator="add_to_carts",
@@ -155,7 +116,7 @@ async def build_catalog_analysis(
         group_by=["period_month", "product_name"],
         filters={"device": "mobile"},
     )
-    channel_orders = _ratio(
+    channel_orders = ratio_metric(
         payload,
         name="渠道曝光到下单转化率",
         numerator="orders",
@@ -165,13 +126,13 @@ async def build_catalog_analysis(
 
     july = "2026-07-01"
     august = "2026-08-01"
-    overall_map = _point_map(overall_orders, "period_month")
-    click_map = _point_map(overall_clicks, "period_month")
-    mobile_map = _point_map(mobile_carts, "period_month")
-    device_map = _point_map(device_carts, "period_month", "device")
-    category_map = _point_map(category_orders, "period_month", "category")
-    product_map = _point_map(product_carts, "period_month", "product_name")
-    channel_map = _point_map(channel_orders, "period_month", "channel")
+    overall_map = point_map(overall_orders, "period_month")
+    click_map = point_map(overall_clicks, "period_month")
+    mobile_map = point_map(mobile_carts, "period_month")
+    device_map = point_map(device_carts, "period_month", "device")
+    category_map = point_map(category_orders, "period_month", "category")
+    product_map = point_map(product_carts, "period_month", "product_name")
+    channel_map = point_map(channel_orders, "period_month", "channel")
 
     july_overall = overall_map[(july,)]
     august_overall = overall_map[(august,)]
@@ -183,7 +144,7 @@ async def build_catalog_analysis(
     products = sorted(key[1] for key in product_map if key[0] == august)
     worst_product = min(
         products,
-        key=lambda product: _change(
+        key=lambda product: change_rate(
             product_map[(august, product)], product_map[(july, product)]
         ),
     )
@@ -193,7 +154,7 @@ async def build_catalog_analysis(
     categories = sorted(key[1] for key in category_map if key[0] == august)
     worst_category = min(
         categories,
-        key=lambda category: _change(
+        key=lambda category: change_rate(
             category_map[(august, category)], category_map[(july, category)]
         ),
     )
@@ -206,7 +167,7 @@ async def build_catalog_analysis(
     august_impressions = sum(
         int(row["impressions"]) for row in query_result.rows if row["period_month"] == august
     )
-    impression_change = _change(float(august_impressions), float(july_impressions))
+    impression_change = change_rate(float(august_impressions), float(july_impressions))
 
     key_metrics = [
         _metric_card("整体曝光到下单转化率", august_overall, july_overall),
@@ -239,7 +200,7 @@ async def build_catalog_analysis(
             "source_name": "移动端漏斗指标",
             "evidence_text": (
                 f"移动端点击到加购率由 {july_mobile:.2f}% 降至 {august_mobile:.2f}%"
-                f"（{_change(august_mobile, july_mobile):+.1f}%），"
+                f"（{change_rate(august_mobile, july_mobile):+.1f}%），"
                 f"桌面端同期为 {july_desktop:.2f}% 到 {august_desktop:.2f}%。"
             ),
             "related_metric": "移动端点击到加购率",

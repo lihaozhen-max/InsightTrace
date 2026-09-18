@@ -52,6 +52,31 @@ async def test_catalog_demo_data_is_repeatably_seeded() -> None:
     ]
 
 
+async def test_behavior_demo_data_is_repeatably_seeded() -> None:
+    async with engine.connect() as connection:
+        table_names = await connection.run_sync(
+            lambda sync_connection: set(
+                inspect(sync_connection).get_table_names(schema="demo_behavior")
+            )
+        )
+        row_count = await connection.scalar(
+            text("SELECT count(*) FROM demo_behavior.funnel_metrics")
+        )
+        periods = await connection.execute(
+            text(
+                "SELECT period_start, count(*) FROM demo_behavior.funnel_metrics "
+                "GROUP BY period_start ORDER BY period_start"
+            )
+        )
+
+    assert "funnel_metrics" in table_names
+    assert row_count == 16
+    assert [(str(period), count) for period, count in periods] == [
+        ("2026-08-10", 8),
+        ("2026-08-17", 8),
+    ]
+
+
 async def test_only_one_active_task_is_allowed_per_conversation() -> None:
     async with engine.connect() as connection:
         index_definition = await connection.scalar(

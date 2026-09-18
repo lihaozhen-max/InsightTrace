@@ -166,3 +166,44 @@ def test_executor_builds_catalog_attribution_from_demo_database(
                 assert mobile_metric["metric_value"] < mobile_metric["comparison_value"]
 
         asyncio.run(verify_result())
+
+
+def test_executor_builds_behavior_attribution_from_demo_database(
+    created_conversation_ids: list[UUID],
+) -> None:
+    with TestClient(app, follow_redirects=False) as client:
+        login_as(client, "admin")
+        task = _create_task(
+            client,
+            created_conversation_ids,
+            input_text="为什么本周访问到下单的转化率下降？",
+        )
+
+        assert asyncio.run(process_next_queued_task()) is True
+
+        completed = client.get(f"/api/tasks/{task['id']}").json()
+        assert completed["task_status"] == "success"
+        logs = client.get(f"/api/tasks/{task['id']}/logs").json()
+        log_content = "\n".join(log["log_content"] for log in logs)
+        assert "behavior_attribution" in log_content
+        assert "读取 16 行" in log_content
+
+        async def verify_result() -> None:
+            async with SessionLocal() as session:
+                result = await session.scalar(
+                    select(AnalysisResult).where(
+                        AnalysisResult.task_id == UUID(task["id"])
+                    )
+                )
+                assert result is not None
+                assert result.confidence == 0.91
+                assert "paid_social" in result.conclusion_text
+                assert "demo_behavior.funnel_metrics" in result.result_markdown
+                conversion_metric = next(
+                    metric
+                    for metric in result.key_metrics_json
+                    if metric["metric_name"] == "访问到下单转化率"
+                )
+                assert conversion_metric["metric_value"] < conversion_metric["comparison_value"]
+
+        asyncio.run(verify_result())

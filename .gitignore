@@ -39,5 +39,8 @@ storage/workspace/*
 playwright-report/
 test-results/
 
+# Local database backups
+backups/
+
 # Logs
 *.log

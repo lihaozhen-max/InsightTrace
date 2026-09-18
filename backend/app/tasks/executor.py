@@ -7,6 +7,8 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import select
 
+from app.analysis.attachment import build_attachment_analysis
+from app.analysis.audit import audit_metadata, reconcile_model_output
 from app.analysis.behavior import build_behavior_analysis
 from app.analysis.catalog import build_catalog_analysis
 from app.analysis.demo import build_attachment_grounding, build_demo_analysis
@@ -247,14 +249,22 @@ async def execute_task(task_id: UUID) -> None:
                         "result_summary": f"已检查 {len(attachments)} 个附件",
                     },
                 )
+                deterministic_attachment_output = (
+                    build_attachment_analysis(task.input_text, attachments)
+                    if attachments
+                    else None
+                )
                 output = (
-                    build_attachment_grounding(task.input_text, attachments)
-                    if attachments and task.analysis_mode.value == "model"
-                    else build_demo_analysis(task.input_text, attachments)
+                    deterministic_attachment_output
+                    or (
+                        build_attachment_grounding(task.input_text, attachments)
+                        if attachments and task.analysis_mode.value == "model"
+                        else build_demo_analysis(task.input_text, attachments)
+                    )
                 )
                 metric_description = (
-                    "已读取附件真实行数据，正在准备模型分析"
-                    if attachments and task.analysis_mode.value == "model"
+                    "已完成附件指标、贡献度和异常的确定性计算"
+                    if deterministic_attachment_output is not None
                     else "正在生成演示模式的数据概览"
                 )
             await advance_task(
@@ -280,14 +290,25 @@ async def execute_task(task_id: UUID) -> None:
                 ),
             )
             if task.analysis_mode.value == "model":
-                output = await analyze_with_openai_compatible(
+                grounding_output = output
+                generated_output = await analyze_with_openai_compatible(
                     analysis_context,
                     base_url=settings.openai_base_url or "",
                     api_key=settings.openai_api_key or "",
                     model=settings.openai_model or "",
                     reasoning_effort=settings.openai_reasoning_effort,
                     timeout_seconds=settings.openai_timeout_seconds,
-                    grounding_output=output,
+                    grounding_output=grounding_output,
+                )
+                output = reconcile_model_output(generated_output, grounding_output)
+                await record_task_event(
+                    session,
+                    task,
+                    event_type="report_audit",
+                    payload={
+                        "summary": "已完成数值溯源、因果边界和抽样措辞审校",
+                        "result": audit_metadata(output),
+                    },
                 )
             for delta in (
                 "数据源检查已完成。",

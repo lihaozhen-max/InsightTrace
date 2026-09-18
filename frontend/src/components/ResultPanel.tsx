@@ -16,8 +16,33 @@ function metricValue(metric: Record<string, unknown>): string {
   return `${String(value)}${String(unit)}`;
 }
 
+function metricComparison(metric: Record<string, unknown>): string {
+  if (metric.comparison_value === null || metric.comparison_value === undefined) return "";
+  const unit = String(metric.metric_unit ?? metric.unit ?? "");
+  const period = String(metric.comparison_period ?? "对比期");
+  return `${period}：${String(metric.comparison_value)}${unit}`;
+}
+
 function evidenceText(evidence: Record<string, unknown>): string {
   return String(evidence.evidence_text ?? evidence.summary ?? "已记录证据");
+}
+
+const evidenceLevelLabels: Record<string, string> = {
+  observed: "已观察事实",
+  calculation: "确定性计算",
+  calculated: "确定性计算",
+  inference: "相关推断",
+  hypothesis: "待验证假设",
+  audit: "报告审校",
+};
+
+function evidenceLevel(evidence: Record<string, unknown>): string {
+  const level = String(evidence.fact_level ?? "observed");
+  return evidenceLevelLabels[level] ?? level;
+}
+
+function sourceLabel(item: Record<string, unknown>): string {
+  return [item.source_name, item.sheet_name].filter(Boolean).map(String).join(" / ");
 }
 
 export function ResultPanel({ taskId }: ResultPanelProps) {
@@ -64,14 +89,32 @@ export function ResultPanel({ taskId }: ResultPanelProps) {
           {result.data.key_metrics.map((metric, index) => (
             <div className="metric-card" key={`${metricLabel(metric)}-${index}`}>
               <span>{metricLabel(metric)}</span><strong>{metricValue(metric)}</strong>
+              {metricComparison(metric) && <small>{metricComparison(metric)}</small>}
+              {Boolean(metric.formula) && <code>{String(metric.formula)}</code>}
+              {sourceLabel(metric) && <small>{sourceLabel(metric)}</small>}
             </div>
           ))}
         </div>
       </article>
       <article>
         <h5>3. 证据</h5>
-        <ol>{result.data.evidence_list.map((item, index) => (
-          <li key={String(item.evidence_id ?? index)}>{evidenceText(item)}</li>
+        <ol className="evidence-list">{result.data.evidence_list.map((item, index) => (
+          <li key={String(item.evidence_id ?? index)}>
+            <div className="evidence-meta">
+              <span className={`evidence-level level-${String(item.fact_level ?? "observed")}`}>
+                {evidenceLevel(item)}
+              </span>
+              {sourceLabel(item) && <small>{sourceLabel(item)}</small>}
+            </div>
+            <p>{evidenceText(item)}</p>
+            {Boolean(item.formula) && <code>{String(item.formula)}</code>}
+            {item.sample_size !== null && item.sample_size !== undefined && (
+              <small>样本量：{String(item.sample_size)}</small>
+            )}
+            {Boolean(item.limitations) && (
+              <small className="evidence-limit">限制：{String(item.limitations)}</small>
+            )}
+          </li>
         ))}</ol>
       </article>
       <article><h5>4. 结论</h5><p>{result.data.conclusion_text}</p></article>

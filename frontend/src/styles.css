@@ -347,6 +347,17 @@ h1, h2, h3, h4, h5, p { margin-top: 0; }
 .metric-card { display: grid; gap: 5px; padding: 11px; border: 1px solid #dce4ff; border-radius: 9px; background: #f7f9ff; }
 .metric-card span, .result-confidence { color: #788598; font-size: 9px; }
 .metric-card strong { color: #254dcc; font-size: 17px; }
+.metric-card code, .evidence-list code { color: #516071; font-size: 9px; white-space: normal; overflow-wrap: anywhere; }
+.metric-card small { color: #8792a3; font-size: 8px; }
+.evidence-list { display: grid; gap: 9px; padding-left: 20px; }
+.evidence-list li { padding: 9px 10px; border: 1px solid #e8ecf2; border-radius: 8px; background: #fbfcfe; }
+.evidence-list li > p { margin: 6px 0 !important; }
+.evidence-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.evidence-meta small, .evidence-list li > small { display: block; color: #7c899a; font-size: 9px; }
+.evidence-level { padding: 2px 6px; border-radius: 999px; color: #17675a; background: #e7f7f3; font-size: 8px; }
+.level-inference, .level-hypothesis { color: #8a5b10; background: #fff4d6; }
+.level-audit { color: #3451a3; background: #eaf0ff; }
+.evidence-limit { margin-top: 5px; color: #9a5d49 !important; }
 .report-action { padding: 7px 9px; border: 1px solid #b9c7ff; border-radius: 7px; color: #315efb; background: #f5f7ff; cursor: pointer; font-size: 10px; }
 
 .context-intro { padding: 1px 2px 16px; border-bottom: 1px solid var(--line); }
